@@ -1,10 +1,14 @@
 const COLLECTION = 'teachers';
 
 const teacherSchema = {
-   teacherId: { type: 'string', required: true, unique: true },
-   name: { type: 'string', required: true },
-   subject: { type: 'string', required: true },
-   username: { type: 'string', required: true, unique: true },
-}
+  teacherId: { type: 'string', required: true, unique: true },
+  username: { type: 'string', required: true, unique: true },
+  name: { type: 'string' },              
+  subject: { type: 'string' },
+  customization: { type: 'object' },
+  avatarUrl: { type: 'string' },
+  avatarBase64: { type: 'string' },
+  assignedStudents: { type: 'array' }
+};
 
 module.exports = { COLLECTION, teacherSchema };
