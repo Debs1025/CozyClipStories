@@ -10,7 +10,7 @@ async function getProfile(req, res) {
     const userId = req.params.id || (req.user && req.user.id);
     if (!userId) return res.status(400).json({ success: false, message: 'Missing userId' });
 
-    //Checks if user is teacher and owner of the profile
+   
     if (req.user && req.user.role === 'teacher' && !isOwner(req.user, userId)) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
@@ -18,6 +18,24 @@ async function getProfile(req, res) {
     const profile = await teacherService.getProfile(userId);
     if (!profile) return res.status(404).json({ success: false, message: 'Profile not found' });
     res.status(200).json({ success: true, data: { profile } });
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({ success: false, message: error.message || 'Internal server error' });
+  }
+}
+
+async function createProfile(req, res) {
+  try {
+    const userId = req.params.id || (req.user && req.user.id);
+    if (!userId) return res.status(400).json({ success: false, message: 'Missing userId' });
+
+    // Only allow a teacher to create their own profile
+    if (req.user && req.user.role === 'teacher' && !isOwner(req.user, userId)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    const profile = await teacherService.createProfile(userId, req.body || {});
+    res.status(201).json({ success: true, message: 'Profile created', data: { profile } });
   } catch (error) {
     const status = error.status || 500;
     res.status(status).json({ success: false, message: error.message || 'Internal server error' });
@@ -70,4 +88,4 @@ async function deleteProfile(req, res) {
   }
 }
 
-module.exports = { getProfile, updateProfile, deleteProfile };
+module.exports = { getProfile, createProfile, updateProfile, deleteProfile };
