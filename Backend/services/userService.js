@@ -13,16 +13,35 @@ function normalizeRole(r) {
   return (v === 'student' || v === 'teacher') ? v : null;
 }
 
+async function changePassword(userId, currentPassword, newPassword) {
+  if (!userId) throw Object.assign(new Error('Missing userId'), { status: 400 });
+  if (!currentPassword || !newPassword) throw Object.assign(new Error('Current and new password are required'), { status: 400 });
+
+  const db = firebase.firestore();
+  const ref = db.collection(COLLECTION).doc(userId);
+  const snap = await ref.get();
+  if (!snap.exists) throw Object.assign(new Error('User not found'), { status: 404 });
+
+  const user = snap.data();
+  const ok = await bcrypt.compare(currentPassword, user.password || '');
+  if (!ok) throw Object.assign(new Error('Current password incorrect'), { status: 401 });
+
+  const salt = await bcrypt.genSalt(10);
+  const hashed = await bcrypt.hash(newPassword, salt);
+  await ref.update({ password: hashed });
+
+  return true;
+}
+
 async function registerUser({ username, email, password, id, role }) {
   const db = firebase.firestore();
   const users = db.collection(COLLECTION);
 
-  // check email uniqueness
+  // Check for existing email and username
   if (!email) throw err('Email is required', 400);
   const existingEmail = await users.where('email', '==', email).limit(1).get();
   if (!existingEmail.empty) throw err('Email already exists', 409);
 
-  // optional: check username uniqueness if provided
   if (username) {
     const existingUser = await users.where('username', '==', username).limit(1).get();
     if (!existingUser.empty) throw err('Username already exists', 409);
@@ -72,4 +91,43 @@ async function authenticateUser(email, password, role) {
   return { user: safe, token };
 }
 
-module.exports = { registerUser, authenticateUser };
+// Generates OTP for password reset
+async function createForgotOtp(email) {
+  if (!email) throw Object.assign(new Error('Missing email'), { status: 400 });
+  const db = firebase.firestore();
+  const users = db.collection(COLLECTION);
+  const snap = await users.where('email', '==', email).limit(1).get();
+  if (snap.empty) throw Object.assign(new Error('User not found'), { status: 404 });
+  const doc = snap.docs[0];
+  const userId = doc.id;
+
+  const code = String(Math.floor(100000 + Math.random() * 900000)); // 6-digit
+  const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+
+  await users.doc(userId).set({ _forgotOtp: { code, expiresAt } }, { merge: true });
+
+  return { userId, code };
+}
+
+//Verifies OTP and resets password
+async function resetPasswordByOtp(email, code, newPassword) {
+  if (!email || !code || !newPassword) throw Object.assign(new Error('Missing parameters'), { status: 400 });
+  const db = firebase.firestore();
+  const users = db.collection(COLLECTION);
+  const snap = await users.where('email', '==', email).limit(1).get();
+  if (snap.empty) throw Object.assign(new Error('User not found'), { status: 404 });
+  const doc = snap.docs[0];
+  const userId = doc.id;
+  const data = doc.data() || {};
+  const otp = data._forgotOtp || {};
+  if (!otp.code || otp.expiresAt < Date.now()) throw Object.assign(new Error('OTP expired or not found'), { status: 400 });
+  if (String(otp.code) !== String(code)) throw Object.assign(new Error('Invalid OTP'), { status: 401 });
+
+  const salt = await bcrypt.genSalt(10);
+  const hashed = await bcrypt.hash(newPassword, salt);
+  await users.doc(userId).update({ password: hashed, _forgotOtp: null });
+
+  return true;
+}
+
+module.exports = { registerUser, authenticateUser, changePassword, createForgotOtp, resetPasswordByOtp };
