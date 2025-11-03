@@ -7,9 +7,6 @@ const { validationResult } = require("express-validator");
 
 // ✅ Import Routes
 const HomeRoutes = require("./routes/HomeRoutes");
-const LibraryRoutes = require("./routes/LibraryRoutes");
-const StoryRoutes = require("./routes/StoryRoutes"); // ✅ New import
-const ShopRoutes = require("./routes/ShopRoutes");
 
 dotenv.config();
 const app = express();
@@ -35,9 +32,6 @@ app.use((req, res, next) => {
 
 // ✅ Mount routes
 app.use("/api/home", HomeRoutes);
-app.use("/api/library", LibraryRoutes);
-app.use("/api/stories", StoryRoutes); // ✅ Added new Story route group
-app.use("/api/shop", ShopRoutes);
 
 // Root route
 app.get("/", (req, res) => {
