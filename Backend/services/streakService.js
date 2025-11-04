@@ -76,21 +76,59 @@ async function recordReadingSession(userId, sessionIso) {
 }
 
 function fetchMotivation() {
+  const denyWords = ['sex','porn','nude','naked','fuck','shit','bitch','drugs','kill','violence','alcohol'];
+  const denyTags = new Set(['adult','nsfw']);
+  const isSafe = (text, meta) => {
+    if (!text) return false;
+    const s = String(text).toLowerCase();
+    for (const w of denyWords) if (s.includes(w)) return false;
+    if (meta && Array.isArray(meta.tags)) {
+      for (const t of meta.tags) if (denyTags.has(String(t).toLowerCase())) return false;
+    }
+    return true;
+  };
+
   return new Promise((resolve) => {
-    const req = https.get('https://api.quotable.io/random', (res) => {
-      let body = '';
-      res.on('data', (c) => (body += c));
-      res.on('end', () => {
-        try {
-          const j = JSON.parse(body);
-          resolve({ text: j.content, author: j.author });
-        } catch (e) {
-          resolve({ text: 'Keep reading — small steps win.', author: 'CozyClips' });
-        }
+    const url = 'https://thequoteshub.com/api/quote/random';
+    let attempts = 0;
+    const maxAttempts = 3;
+    const MAX_LEN = 200;
+
+    const tryFetch = () => {
+      attempts++;
+      const req = https.get(url, (res) => {
+        let body = '';
+        res.on('data', (c) => (body += c));
+        res.on('end', () => {
+          try {
+            const j = JSON.parse(body);
+            const raw = j?.content || j?.quote || j?.text || (j?.data && (j.data.content || j.data.quote)) || '';
+            
+            // Only output 1 sentence quotes
+            const m = raw.match(/^[\s\S]*?[.!?](?=\s|$)/);
+            const sentence = m ? m[0].trim() : raw.trim();
+            const author = j?.author || j?.person || 'CozyClips';
+
+            if ((isSafe(sentence, j) && sentence.length <= MAX_LEN) || attempts >= maxAttempts) {
+              return resolve({ content: sentence || 'Keep reading — small steps win.', author });
+            }
+            return tryFetch();
+          } catch (e) {
+            if (attempts >= maxAttempts) return resolve({ content: 'Keep reading — small steps win.', author: 'CozyClips' });
+            return tryFetch();
+          }
+        });
       });
-    });
-    req.on('error', () => resolve({ text: 'Keep reading — small steps win.', author: 'CozyClips' }));
-    req.end();
+
+      req.on('error', () => {
+        if (attempts >= maxAttempts) return resolve({ content: 'Keep reading — small steps win.', author: 'CozyClips' });
+        tryFetch();
+      });
+
+      req.end();
+    };
+
+    tryFetch();
   });
 }
 
