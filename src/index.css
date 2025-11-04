@@ -1,0 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Kameron:wght@400..700&display=swap');
+@import "tailwindcss";
+
+body {
+  font-family: 'Kameron', sans-serif;
+}
+
+/* Hide native browser password reveal/clear icons so only the custom toggle is visible */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
+
+/* Hide horizontal scrollbar */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+.hide-scrollbar {
+  -ms-overflow-style: none; 
+  scrollbar-width: none;
+}
+
+html {
+  scroll-behavior: smooth;
+}
