@@ -1,0 +1,2 @@
+const loadTailwind = () => { try { return require('@tailwindcss/postcss'); } catch { return require('tailwindcss'); } };
+module.exports = { plugins: { '@tailwindcss/postcss': {}, autoprefixer: {}, }, };

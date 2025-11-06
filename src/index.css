@@ -1,0 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Kameron:wght@400;700&display=swap');
+@reference "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ring: 0 0% 0%;
+}
+
+html, body, #root {
+  height: 100%;
+  font-family: 'Kameron', serif;
+}
+
+@layer components {
+  .nav-link { @apply text-white hover:text-white transition-colors font-['Kameron'] text-base font-normal no-underline; }
+  .btn { @apply inline-flex items-center gap-2 rounded border border-[#c9bfb3] bg-white px-3 py-1.5 text-sm font-medium text-[#2a2a2a] shadow-sm hover:bg-[#f6f2ec]; }
+  .btn-no-border { @apply inline-flex items-center gap-2 rounded bg-transparent px-3 py-1.5 text-sm font-medium text-[#2a2a2a] hover:bg-transparent focus:outline-none border-none shadow-none; }
+  .btn-primary { @apply inline-flex items-center gap-2 rounded-md bg-[#8f0f1b] px-3 py-1.5 text-sm font-medium text-white shadow hover:bg-[#6f0b15]; }
+  .card { @apply rounded-md bg-white shadow-[0_1px_1px_rgba(0,0,0,0.06),0_2px_6px_rgba(0,0,0,0.06)] border border-[#c9bfb3] overflow-hidden; }
+  .divider { @apply border-t border-[#c9bfb3]; }
+  .filter-green { filter: invert(29%) sepia(97%) saturate(700%) hue-rotate(90deg) brightness(30%) contrast(90%); }
+}
+
+.content-scroll { scrollbar-width: thin; }
+.content-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+.content-scroll::-webkit-scrollbar-thumb { background-color: #c9bfb3; border-radius: 4px; }
