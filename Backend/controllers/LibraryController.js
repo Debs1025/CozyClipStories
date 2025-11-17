@@ -1,98 +1,171 @@
+// controllers/LibraryController.js
 const axios = require("axios");
+const fs = require("fs").promises;
+const path = require("path");
 
-async function hasReadableText(ocaid) {
-  if (!ocaid) return false;
-  const textUrls = [
-    `https://archive.org/download/${ocaid}/${ocaid}.txt`,
-    `https://archive.org/download/${ocaid}/${ocaid}_djvu.txt`,
-    `https://archive.org/stream/${ocaid}/${ocaid}.txt`
-  ];
+// === CACHE ===
+const CACHE_FILE = path.join(__dirname, "../data/random-pool-cache.json");
+let randomPool = [];
 
-  for (const url of textUrls) {
-    try {
-      const resp = await axios.get(url, { timeout: 4000 });
-      const text = resp.data;
-      if (typeof text !== "string") continue;
-      if (text.startsWith("<!DOCTYPE") || text.startsWith("<html")) continue;
-      if (text.length < 500) continue;
-      return true;
-    } catch {
-      continue;
-    }
-  }
-  return false;
-}
-
-async function checkBook(book) {
+(async () => {
   try {
-    const workId = book.key?.replace("/works/", "");
-    if (!workId) return null;
-
-    const editionsUrl = `https://openlibrary.org/works/${workId}/editions.json?limit=3`;
-    const { data: editionsData } = await axios.get(editionsUrl);
-    const editions = editionsData.entries || [];
-
-    for (const edition of editions) {
-      if (!edition.ocaid) continue;
-      if (await hasReadableText(edition.ocaid)) {
-        return {
-          id: workId,
-          title: book.title,
-          author: book.author_name ? book.author_name.join(", ") : "Unknown",
-          year: book.first_publish_year || "Unknown",
-          subjects: book.subject ? book.subject.slice(0, 5) : [],
-          cover_url: book.cover_i
-            ? `https://covers.openlibrary.org/b/id/${book.cover_i}-L.jpg`
-            : null
-        };
-      }
-    }
+    await fs.mkdir(path.dirname(CACHE_FILE), { recursive: true });
+    const data = await fs.readFile(CACHE_FILE, "utf8");
+    randomPool = JSON.parse(data);
+    console.log(`Loaded ${randomPool.length} books into random pool`);
   } catch {
-    return null;
+    console.log("Building fresh random pool...");
   }
-  return null;
+})();
+
+async function savePool() {
+  try {
+    await fs.writeFile(CACHE_FILE, JSON.stringify(randomPool, null, 2));
+  } catch (e) {
+    console.error("Pool save failed:", e);
+  }
 }
 
+// === RATE LIMITER ===
+const delay = ms => new Promise(r => setTimeout(r, ms));
+let lastRequest = 0;
+async function wait() {
+  const now = Date.now();
+  const elapsed = now - lastRequest;
+  if (elapsed < 300) await delay(300 - elapsed);
+  lastRequest = Date.now();
+}
+
+// === BUILD GIANT POOL ONCE ===
+async function buildRandomPool() {
+  const allBooks = new Map();
+  let page = 1;
+  let hasMore = true;
+
+  console.log("BUILDING RANDOM POOL (this runs once every 24h)...");
+
+  while (hasMore && page <= 10) {
+    await wait();
+    const url = `https://gutendex.com/books?languages=en&page=${page}`;
+    try {
+      const { data } = await axios.get(url, { timeout: 10000 });
+      const books = (data.results || []).filter(b =>
+        b.formats["text/plain"] || b.formats["text/plain; charset=utf-8"]
+      );
+
+      for (const b of books) {
+        if (!allBooks.has(b.id)) allBooks.set(b.id, b);
+      }
+
+      hasMore = !!data.next;
+      page++;
+      console.log(`Page ${page - 1}: +${books.length} → Total: ${allBooks.size}`);
+    } catch (e) {
+      console.log(`Page ${page} failed: ${e.message}`);
+      break;
+    }
+  }
+
+  randomPool = Array.from(allBooks.values());
+  await savePool();
+  console.log(`RANDOM POOL READY: ${randomPool.length} books`);
+}
+
+// === SHUFFLE & PICK ===
+function getRandomBooks(limit) {
+  if (randomPool.length === 0) return [];
+  const shuffled = [...randomPool];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, limit);
+}
+
+// === SEARCH (optional) ===
+async function searchBooks(query) {
+  await wait();
+  const url = `https://gutendex.com/books?search=${encodeURIComponent(query)}&languages=en`;
+  try {
+    const { data } = await axios.get(url, { timeout: 10000 });
+    return (data.results || []).filter(b =>
+      b.formats["text/plain"] || b.formats["text/plain; charset=utf-8"]
+    );
+  } catch {
+    return [];
+  }
+}
+
+// === CONTROLLER ===
 const LibraryController = {
   async getStories(req, res) {
     try {
-      let { q, genre, limit = 10, page = 1 } = req.query;
-      if (!q && !genre) q = "classic literature";
+      let { q, limit = 10 } = req.query;
+      limit = Math.min(parseInt(limit) || 10, 50);
 
-      const searchLimit = 100; // more candidates, still reasonable
-      const url = `https://openlibrary.org/search.json?${
-        q ? `q=${encodeURIComponent(q)}&` : ""
-      }${genre ? `subject=${encodeURIComponent(genre)}&` : ""}limit=${searchLimit}&page=${page}`;
+      // === BUILD POOL IF EMPTY ===
+      if (randomPool.length === 0) {
+        await buildRandomPool();
+      }
 
-      const { data } = await axios.get(url);
-      const allBooks = data.docs || [];
-      const readableBooks = [];
+      let books = [];
 
-      // Process in smaller batches
-      const batchSize = 5;
-      for (let i = 0; i < allBooks.length && readableBooks.length < limit; i += batchSize) {
-        const batch = allBooks.slice(i, i + batchSize);
-        const results = await Promise.all(batch.map(checkBook));
-
-        for (const book of results) {
-          if (book) readableBooks.push(book);
-          if (readableBooks.length >= limit) break;
-        }
+      if (q && q.trim()) {
+        console.log(`\nSEARCH: "${q}"`);
+        const results = await searchBooks(q.trim());
+        const shuffled = getRandomBooksFrom(results, limit);
+        books = shuffled.map(formatBook);
+      } else {
+        console.log(`\nRANDOM: ${limit} books from pool of ${randomPool.length}`);
+        const selected = getRandomBooks(limit);
+        books = selected.map(formatBook);
       }
 
       res.json({
         success: true,
-        total: readableBooks.length,
-        books: readableBooks
+        total: books.length,
+        books,
+        hasMore: false,
+        pool_size: randomPool.length
       });
+
     } catch (err) {
-      console.error("❌ LibraryController error:", err.message);
-      res.status(500).json({
-        success: false,
-        message: "Failed to fetch readable stories."
-      });
+      console.error("FATAL:", err);
+      res.status(500).json({ success: false, message: "Server error" });
     }
   }
 };
+
+// === HELPERS ===
+function getRandomBooksFrom(arr, n) {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, n);
+}
+
+function formatBook(b) {
+  const gId = b.id.toString();
+  const txt = b.formats["text/plain"] || b.formats["text/plain; charset=utf-8"];
+  const cover = b.formats["image/jpeg"] || `https://www.gutenberg.org/cache/epub/${gId}/pg${gId}.cover.medium.jpg`;
+
+  return {
+    id: `GB${gId}`,
+    title: (b.title || "").split(/ by /i)[0].trim(),
+    author: b.authors?.[0]?.name || "Unknown",
+    year: b.release_date?.slice(0, 4) || "Unknown",
+    subjects: (b.subjects || []).slice(0, 5).map(s => s.split(" -- ")[0]),
+    cover_url: cover,
+    gutenberg_id: gId,
+    source_url: txt,
+    content_preview: "…",
+    edition_info: {
+      publish_date: b.release_date?.slice(0, 10) || "Unknown",
+      language: b.languages?.[0] || "en",
+    },
+  };
+}
 
 module.exports = LibraryController;
