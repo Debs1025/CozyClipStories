@@ -11,7 +11,6 @@ const { validationResult } = require("express-validator");
 const HomeRoutes = require("./routes/HomeRoutes");
 const LibraryRoutes = require("./routes/LibraryRoutes");
 const StoryRoutes = require("./routes/StoryRoutes");
-const ShopRoutes = require("./routes/ShopRoutes");
 const QuizRoutes = require("./routes/QuizRoutes");
 
 const app = express();
@@ -39,7 +38,6 @@ app.use((req, res, next) => {
 app.use("/api/home", HomeRoutes);
 app.use("/api/library", LibraryRoutes);
 app.use("/api/stories", StoryRoutes);
-app.use("/api/shop", ShopRoutes);
 app.use("/api/quiz", QuizRoutes);
 
 // Root
