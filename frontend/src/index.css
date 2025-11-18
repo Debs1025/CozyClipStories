@@ -1,0 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Kameron:wght@400..700&display=swap');
+@import "tailwindcss";
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+}
+
+
+body {
+  background-color: #f3eadd; 
+  font-family: 'Kameron', serif;
+}
+
+img {
+  image-rendering: -webkit-optimize-contrast;
+}
