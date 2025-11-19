@@ -4,6 +4,9 @@
 body {
   font-family: 'Kameron', sans-serif;
 }
+p{
+  font-family: "Poppins", sans-serif;
+}
 
 /* Hide native browser password reveal/clear icons so only the custom toggle is visible */
 input[type="password"]::-ms-reveal,
