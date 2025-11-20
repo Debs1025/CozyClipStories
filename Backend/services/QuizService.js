@@ -3,118 +3,84 @@ const axios = require("axios");
 const QuizModel = require("../models/QuizModel");
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
 class QuizService {
-  static async generateTrueFalseQuiz(userId, storyId, content, title) {
-    const prompt = `You are a perfect quiz generator.
+  static async generateTrueFalseQuiz(userId, storyId, storyContent, title) {
+    const prompt = `
+Generate exactly 10 True/False questions from this excerpt of "${title}":
 
-Generate EXACTLY 10 True/False questions for the book "${title}".
+Text: ${storyContent.substring(0, 3000)}
 
-Use this text:
-${content}
-
-OUTPUT ONLY THIS JSON (no extra text, no markdown, no explanations):
-
+Rules:
+- Exactly 10 questions
+- Each is a clear statement
+- Output ONLY valid JSON array:
 [
   {
-    "question": "Alice follows a white rabbit down a hole.",
+    "question": "War is a duel on an extensive scale.",
     "choices": ["true", "false"],
     "correctAnswer": "true",
-    "explanation": "This is how the story begins."
+    "explanation": "Clausewitz defines war as 'nothing but a duel on an extensive scale'."
   }
-]`;
+]
+`.trim();
 
-    try {
-      const response = await axios.post(
-        `${GEMINI_URL}?key=${GEMINI_API_KEY}`,
-        {
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 2048,
-            responseMimeType: "application/json"
-          },
-          safetySettings: [
-            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-          ]
+    const response = await axios.post(
+      `${GEMINI_URL}?key=${GEMINI_API_KEY}`,
+      {
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.5,
+          maxOutputTokens: 1500,
+          responseMimeType: "application/json",
         },
-        { timeout: 50000 }
-      );
-
-      let rawText = "";
-      try {
-        rawText = response.data.candidates[0].content.parts[0].text;
-      } catch {
-        throw new Error("No response from AI");
+      },
+      {
+        headers: { "Content-Type": "application/json" },
+        timeout: 30000,
       }
+    );
 
-      // SUPER BULLETPROOF JSON EXTRACTOR
-      rawText = rawText.trim();
-      rawText = rawText.replace(/```json|```/gi, "").trim();
+    const raw = response.data.candidates[0].content.parts[0].text;
+    const clean = raw.replace(/```json/i, "").replace(/```/i, "").trim();
+    let questions = JSON.parse(clean);
 
-      // Find the first [ and last ]
-      const start = rawText.indexOf("[");
-      const end = rawText.lastIndexOf("]") + 1;
-      if (start === -1 || end === 0) throw new Error("No JSON array found");
-
-      const jsonStr = rawText.substring(start, end);
-
-      let questions;
-      try {
-        questions = JSON.parse(jsonStr);
-      } catch (e) {
-        console.log("JSON parse failed, raw:", jsonStr);
-        throw new Error("Invalid JSON from AI");
-      }
-
-      if (!Array.isArray(questions) || questions.length < 5) {
-        throw new Error("Not enough questions");
-      }
-
-      // FINAL CLEANUP — 100% safe
-      questions = questions.slice(0, 10).map((q, i) => ({
-        question: String(q.question || `Question ${i + 1}`).trim(),
-        choices: ["true", "false"],
-        correctAnswer: String(q.correctAnswer || "false").toLowerCase().includes("true") ? "true" : "false",
-        explanation: String(q.explanation || "No explanation available.").trim()
-      }));
-
-      await QuizModel.saveQuiz(userId, storyId, {
-        storyId,
-        title,
-        type: "truefalse",
-        numQuestions: 10,
-        questions,
-        generatedAt: new Date().toISOString()
-      });
-
-    } catch (err) {
-      console.error("Gemini error:", err.message);
-      // LAST RESORT: Use fallback questions
-      const fallback = [
-        { question: "The story takes place in a real location.", choices: ["true", "false"], correctAnswer: "false", explanation: "It's a fictional dream world." },
-        { question: "Alice meets a talking rabbit.", choices: ["true", "false"], correctAnswer: "true", explanation: "The White Rabbit speaks." },
-        { question: "The Queen of Hearts loves croquet.", choices: ["true", "false"], correctAnswer: "true", explanation: "She plays croquet with flamingos." },
-        { question: "Alice drinks a potion to grow bigger.", choices: ["true", "false"], correctAnswer: "true", explanation: "She drinks to change size." },
-        { question: "The Cheshire Cat can disappear.", choices: ["true", "false"], correctAnswer: "true", explanation: "It vanishes leaving only a grin." },
-        { question: "The Mad Hatter hosts a tea party.", choices: ["true", "false"], correctAnswer: "true", explanation: "It's a famous scene." },
-        { question: "Alice wakes up at the end.", choices: ["true", "false"], correctAnswer: "true", explanation: "It was all a dream." },
-        { question: "The story is set in winter.", choices: ["true", "false"], correctAnswer: "false", explanation: "No season is specified." },
-        { question: "Alice becomes queen.", choices: ["true", "false"], correctAnswer: "false", explanation: "She remains a visitor." },
-        { question: "The caterpillar smokes a hookah.", choices: ["true", "false"], correctAnswer: "true", explanation: "It's a famous character trait." }
-      ];
-
-      await QuizModel.saveQuiz(userId, storyId, {
-        storyId,
-        title,
-        type: "truefalse",
-        numQuestions: 10,
-        questions: fallback,
-        generatedAt: new Date().toISOString(),
-        isFallback: true
-      });
+    if (!Array.isArray(questions) || questions.length < 10) {
+      throw new Error("AI failed to generate 10 questions");
     }
+
+    questions = questions.slice(0, 10).map(q => ({
+      question: q.question.trim(),
+      choices: q.choices || ["true", "false"],
+      correctAnswer: q.correctAnswer.toLowerCase() === "true" ? "true" : "false",
+      explanation: q.explanation || "No explanation provided."
+    }));
+
+    const quizData = {
+      type: "truefalse",
+      numQuestions: 10,
+      questions,
+      generatedAt: new Date().toISOString(),
+    };
+
+    await QuizModel.saveQuiz(userId, storyId, quizData);
+
+  }
+
+  static async getQuizForUser(userId, storyId) {
+    const quiz = await QuizModel.getQuiz(userId, storyId);
+    if (!quiz) return null;
+
+    return {
+      storyId: quiz.storyId,
+      type: quiz.type,
+      numQuestions: quiz.numQuestions,
+      questions: quiz.questions.map(q => ({
+        question: q.question,
+        choices: q.choices
+      }))
+    };
   }
 }
 

@@ -1,22 +1,22 @@
 // validators/QuizValidators.js
-const { body } = require("express-validator");
+const { body, query, param } = require("express-validator");
 
 const generateQuizValidator = [
-  body("userId").notEmpty().withMessage("userId required"),
-  body("storyId").notEmpty().withMessage("storyId required")
+  body("userId").trim().notEmpty().isString(),
+  body("storyId").trim().notEmpty().matches(/^(GB|OL)\d+$/)
+];
+
+const getQuizValidator = [
+  param("storyId").trim().notEmpty().matches(/^(GB|OL)\d+$/),
+  query("userId").trim().notEmpty().isString()
 ];
 
 const submitQuizValidator = [
-  body("userId").notEmpty(),
-  body("storyId").notEmpty(),
-  body("answers").isArray().withMessage("answers must be array")
+  body("userId").trim().notEmpty().isString(),
+  body("storyId").trim().notEmpty().matches(/^(GB|OL)\d+$/),
+  body("answers").isArray({ min: 10, max: 10 }),
+  body("answers.*").isIn(["true", "false"]),
+  body("timeTaken").isInt({ min: 1 })
 ];
 
-const getQuizValidator = []; // even if empty, must exist
-
-// EXPORT ALL
-module.exports = {
-  generateQuizValidator,
-  submitQuizValidator,
-  getQuizValidator
-};
+module.exports = { generateQuizValidator, getQuizValidator, submitQuizValidator };
