@@ -6,6 +6,7 @@ const DATA_URI_RE = /^data:(image\/(png|jpeg|jpg|webp));base64,([A-Za-z0-9+/=]+)
 const createOrUpdateProfile = [
   body('displayName').optional().isString().trim().notEmpty(),
   body('grade_level').optional().isString().trim(),
+  body('age').optional().isInt({ min: 0, max: 120 }).withMessage('age must be an integer between 0 and 120').toInt(),
   body('classes').optional().isArray(),
   body('classes.*').optional().isString().trim(),
   body('booksRead').optional().isArray(),

@@ -1,5 +1,6 @@
 const studentService = require('../services/studentService');
 const userService = require('../services/userService');
+const rankingService = require('../services/rankingService');
 
 async function createProfile(req, res) {
   try {
@@ -91,10 +92,58 @@ async function deleteProfile(req, res) {
   }
 }
 
+async function markBookFinished(req, res) {
+  try {
+    const db = req.app && req.app.locals && req.app.locals.db;
+    if (!db) return res.status(500).json({ success: false, message: 'Database not initialized' });
+
+    const uid = (req.user && (req.user.id || req.user.uid));
+    if (!uid) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+    const { bookId, title } = req.body || {};
+    if (!bookId || typeof bookId !== 'string') return res.status(400).json({ success: false, message: 'bookId is required' });
+
+    
+    if (typeof studentService.markBookFinished === 'function') {
+      await studentService.markBookFinished(uid, { bookId, title });
+    }
+
+    // single-line ranking update (transactional, deduplicating) - minimal, secure, non-fatal
+    try {
+      await rankingService.addCompletedBook(db, uid, { bookId, title });
+    } catch (err) {
+      console.error('ranking update failed:', err);
+    }
+
+    // Updated rank/progress
+    const studentRef = db.collection('students').doc(uid);
+    const snap = await studentRef.get();
+    const student = snap.exists ? snap.data() : {};
+    const total =
+      typeof student.completedBooksCount === 'number'
+        ? student.completedBooksCount
+        : (student.completedBooks || []).length;
+
+    const rankInfo = rankingService.computeRank(total);
+    rankInfo.badge = rankingService.badgeForTier(rankInfo.tier);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Book marked finished',
+      totalCompletedBooks: total,
+      ...rankInfo,
+    });
+  } catch (err) {
+    const status = err.status || 500;
+    return res.status(status).json({ success: false, message: err.message || 'Internal server error' });
+  }
+}
+
 module.exports = {
   createProfile,
   getAllProfiles,
   getProfile,
   updateProfile,
-  deleteProfile
+  deleteProfile,
+  markBookFinished
 };

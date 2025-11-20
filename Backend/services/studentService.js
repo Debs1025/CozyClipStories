@@ -11,9 +11,9 @@ async function createProfile(userId, data = {}) {
     studentId: userId,
     username: data.username || '',
     displayName: data.displayName || '',
+    age: Number.isFinite(data.age) ? data.age : null,
     rank: data.rank || null,
     coins: Number(data.coins || 0),
-    diamonds: Number(data.diamonds || 0),
     points: Number(data.points || 0),
     badges: data.badges || [],
     readingProgress: data.readingProgress || [],
@@ -21,7 +21,9 @@ async function createProfile(userId, data = {}) {
     achievements: data.achievements || [],
     customization: data.customization || {},
     avatarUrl: data.avatarUrl || '',
-    unlockedItems: Array.isArray(data.unlockedItems) ? data.unlockedItems : []
+    unlockedItems: Array.isArray(data.unlockedItems) ? data.unlockedItems : [],
+    booksRead: Array.isArray(data.booksRead) ? data.booksRead : [],
+    booksReadCount: Number(data.booksReadCount || (Array.isArray(data.booksRead) ? data.booksRead.length : 0)) // initialize counter
   };
   await ref.set(payload, { merge: true });
   const snap = await ref.get();
