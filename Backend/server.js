@@ -1,24 +1,28 @@
 // server.js
+require('dotenv').config();  
+
+
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
-const dotenv = require("dotenv");
 const { validationResult } = require("express-validator");
 
-// ✅ Import Routes
+// Import Routes
 const HomeRoutes = require("./routes/HomeRoutes");
 const LibraryRoutes = require("./routes/LibraryRoutes");
-const StoryRoutes = require("./routes/StoryRoutes"); // ✅ New import
+const StoryRoutes = require("./routes/StoryRoutes");
 const ShopRoutes = require("./routes/ShopRoutes");
+const QuizRoutes = require("./routes/QuizRoutes");
+const BookmarkRoutes = require("./routes/BookmarkRoutes");
+const QuestRoutes = require("./routes/QuestRoutes");
 
-dotenv.config();
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use(morgan("dev"));
 
-// ✅ Inline validation error handler (runs after validators)
+// Global validation handler
 app.use((req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -33,29 +37,24 @@ app.use((req, res, next) => {
   next();
 });
 
-// ✅ Mount routes
+// Mount routes
 app.use("/api/home", HomeRoutes);
 app.use("/api/library", LibraryRoutes);
-app.use("/api/stories", StoryRoutes); // ✅ Added new Story route group
+app.use("/api/stories", StoryRoutes);
 app.use("/api/shop", ShopRoutes);
+app.use("/api/quiz", QuizRoutes);
+app.use("/api/bookmarks", BookmarkRoutes);
+app.use("/api/quests", QuestRoutes);
 
-// Root route
+// Root
 app.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "Welcome to CozyClip Stories API 🚀",
-  });
+  res.json({ success: true, message: "Welcome to CozyClip Stories API" });
 });
 
-// 404 handler
+// 404
 app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: "Route not found",
-  });
+  res.status(404).json({ success: false, message: "Route not found" });
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () =>
-  console.log(`🔥 Server running on http://localhost:${PORT}`)
-);
+app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
