@@ -1,13 +1,25 @@
-// controllers/QuizController.js
 const { validationResult } = require("express-validator");
 const QuizModel = require("../models/QuizModel");
-const axios = require("axios");
+const QuizService = require("../services/QuizService");
+const https = require("https");
+const admin = require("firebase-admin");
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+// Firestore setup
+if (!admin.apps.length) {
+  const serviceAccount = require("../firebaseConfig.json");
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+}
+const db = admin.firestore();
+const FieldValue = admin.firestore.FieldValue;
+
+// HTTPS agent to bypass expired/self-signed SSL certificates
+const agent = new https.Agent({
+  rejectUnauthorized: false
+});
 
 const QuizController = {
-  // POST /api/quiz/generate
   async generateQuiz(req, res) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -20,42 +32,16 @@ const QuizController = {
     try {
       const { userId, storyId } = req.body;
 
-      // === FETCH FROM GUTENBERG ===
-      let title = "Unknown";
-      let content = "";
-
-      if (storyId.startsWith("GB")) {
-        const gutenbergId = storyId.slice(2);
-        try {
-          const metaRes = await axios.get(`https://gutendex.com/books/${gutenbergId}`, { timeout: 5000 });
-          title = metaRes.data.title || "Unknown";
-          const txtUrl = metaRes.data.formats["text/plain; charset=utf-8"] || 
-                         metaRes.data.formats["text/plain"];
-          if (txtUrl) {
-            const txtRes = await axios.get(txtUrl, { timeout: 10000 });
-            content = txtRes.data;
-          }
-        } catch (err) {
-          return res.status(404).json({ success: false, message: "Story not found in archive" });
-        }
-      } else {
-        return res.status(400).json({ success: false, message: "Invalid storyId format" });
-      }
-
-      if (!content) {
-        return res.status(404).json({ success: false, message: "Story content not available" });
-      }
-
-      // === CHECK CACHE ===
-      let quiz = await QuizModel.getQuiz(userId, storyId);
-      if (quiz) {
+      // Check if quiz already exists
+      const cached = await QuizModel.getQuiz(userId, storyId);
+      if (cached) {
         return res.json({
           success: true,
           quiz: {
             storyId,
-            type: "truefalse",
-            numQuestions: 10,
-            questions: quiz.questions.map(q => ({
+            type: cached.type,
+            numQuestions: cached.numQuestions,
+            questions: cached.questions.map(q => ({
               question: q.question,
               choices: q.choices
             }))
@@ -63,99 +49,62 @@ const QuizController = {
         });
       }
 
-      // === GENERATE QUESTIONS ===
-     const prompt = `
-You are a literature teacher creating a **comprehension quiz** for students who just read "${title}".
-
-Generate **exactly 10 True/False statements** that test **deep understanding**, **inference**, and **context**.
-
-Text excerpt (first 3000 chars):
-${content.substring(0, 3000)}
-
-Rules:
-1. Statements must be **True or False** based on the text.
-2. **No direct quotes** — rephrase in your own words.
-3. Test **comprehension**, not memorization.
-4. Include **1 explanation** per question.
-5. Output **ONLY valid JSON**:
-
-[
-  {
-    "question": "Clausewitz believes war is primarily about personal honor.",
-    "choices": ["true", "false"],
-    "correctAnswer": "false",
-    "explanation": "Clausewitz sees war as a political instrument, not personal."
-  }
-]
-`.trim();
-
-      const response = await axios.post(
-        `${GEMINI_URL}?key=${GEMINI_API_KEY}`,
-        {
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.5,
-            maxOutputTokens: 1500,
-            responseMimeType: "application/json",
-          },
-        },
-        { headers: { "Content-Type": "application/json" }, timeout: 30000 }
-      );
-
-      const raw = response.data.candidates[0].content.parts[0].text;
-      const clean = raw.replace(/```json/i, "").replace(/```/g, "").trim();
-      let questions = JSON.parse(clean);
-
-      if (!Array.isArray(questions) || questions.length < 10) {
-        return res.status(500).json({ success: false, message: "AI failed to generate 10 questions" });
+      // Only GB storyIds supported
+      if (!storyId.startsWith("GB")) {
+        return res.status(400).json({ success: false, message: "Only GB storyId supported" });
       }
 
-      // === FIX UNDEFINED VALUES ===
-      questions = questions.slice(0, 10).map(q => ({
-        question: q.question?.trim() || "No question available.",
-        choices: q.choices || ["true", "false"],
-        correctAnswer: (q.correctAnswer?.toString().toLowerCase() === "true") ? "true" : "false",
-        explanation: q.explanation?.trim() || "No explanation provided."
-      }));
+      const gutenbergId = storyId.slice(2);
+      let title = "Unknown";
+      let content = "";
 
-      // === CLEAN FOR FIRESTORE (NO UNDEFINED) ===
-      const cleanQuestions = questions.map(q => ({
-        question: q.question,
-        choices: q.choices,
-        correctAnswer: q.correctAnswer,
-        explanation: q.explanation
-      }));
+      // Fetch metadata from Gutendex
+      const metaRes = await require("axios").get(`https://gutendex.com/books/${gutenbergId}`, {
+        timeout: 5000,
+        httpsAgent: agent
+      });
+      title = metaRes.data.title || title;
 
-      const quizData = {
-        type: "truefalse",
-        numQuestions: 10,
-        questions: cleanQuestions,
-        generatedAt: new Date().toISOString(),
-        title
-      };
+      const formats = metaRes.data.formats || {};
+      let txtUrl =
+        formats["text/plain; charset=utf-8"] ||
+        formats["text/plain"] ||
+        formats["text/html"];
 
-      await QuizModel.saveQuiz(userId, storyId, quizData);
+      if (!txtUrl) {
+        return res.status(404).json({ success: false, message: "Story content not available" });
+      }
+
+      const txtRes = await require("axios").get(txtUrl, {
+        timeout: 10000,
+        httpsAgent: agent
+      });
+      content = txtRes.data;
+      if (!content || content.length < 50) {
+        return res.status(404).json({ success: false, message: "Story content too short" });
+      }
+
+      // Generate mixed quiz
+      const quizData = await QuizService.generateQuiz(userId, storyId, content, title);
 
       res.json({
         success: true,
         quiz: {
           storyId,
-          type: "truefalse",
-          numQuestions: 10,
-          questions: cleanQuestions.map(q => ({
+          type: quizData.type,
+          numQuestions: quizData.numQuestions,
+          questions: quizData.questions.map(q => ({
             question: q.question,
             choices: q.choices
           }))
         }
       });
-
     } catch (err) {
-      console.error("Generate quiz error:", err.message);
+      console.error("Generate quiz error:", err);
       res.status(500).json({ success: false, message: err.message });
     }
   },
 
-  // GET /api/quiz/:storyId
   async getQuiz(req, res) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -178,21 +127,19 @@ Rules:
         success: true,
         quiz: {
           storyId,
-          type: "truefalse",
-          numQuestions: 10,
+          type: quiz.type,
+          numQuestions: quiz.numQuestions,
           questions: quiz.questions.map(q => ({
             question: q.question,
             choices: q.choices
           }))
         }
       });
-
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
     }
   },
 
-  // POST /api/quiz/submit
   async submitQuiz(req, res) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -204,36 +151,39 @@ Rules:
 
     try {
       const { userId, storyId, answers, timeTaken } = req.body;
-
       const quiz = await QuizModel.getQuiz(userId, storyId);
       if (!quiz || quiz.submitted) {
         return res.status(400).json({ success: false, message: "Invalid or already submitted" });
       }
 
-      if (!Array.isArray(answers) || answers.length !== 10) {
-        return res.status(400).json({ success: false, message: "Exactly 10 answers required" });
+      if (!Array.isArray(answers) || answers.length !== quiz.numQuestions) {
+        return res.status(400).json({ success: false, message: `Exactly ${quiz.numQuestions} answers required` });
       }
 
       let correct = 0;
       const results = quiz.questions.map((q, i) => {
-        const userAnswer = answers[i]?.toLowerCase();
-        const isCorrect = userAnswer === q.correctAnswer;
+        const userAnswer = (answers[i] || "").toString().trim().toLowerCase();
+        const correctAnswer = (q.correctAnswer || "").toString().trim().toLowerCase();
+        const isCorrect = userAnswer === correctAnswer;
         if (isCorrect) correct++;
         return {
           question: q.question,
-          userAnswer,
+          userAnswer: answers[i],
           correctAnswer: q.correctAnswer,
           isCorrect,
           explanation: q.explanation
         };
       });
 
+      const coinsEarned = correct; // 1 coin per correct answer
       const score = correct;
-      const accuracy = (correct / 10) * 100;
+      const accuracy = (correct / quiz.numQuestions) * 100;
       let bonus = 0;
-      if (accuracy === 100 && timeTaken < 120) bonus = 10;
+      if (accuracy === 100 && Number(timeTaken) < 120) bonus = 10;
+
       const totalPoints = score * 5 + bonus;
 
+      // Save quiz submission
       await QuizModel.saveQuiz(userId, storyId, {
         ...quiz,
         submitted: true,
@@ -245,18 +195,19 @@ Rules:
         submittedAt: new Date().toISOString()
       });
 
+      // Update coins in students table
+      const studentRef = db.collection("students").doc(userId);
+      await studentRef.set({
+        coins: FieldValue.increment(coinsEarned),
+        totalCoinsEarned: FieldValue.increment(coinsEarned),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+
       res.json({
         success: true,
-        result: {
-          score,
-          accuracy,
-          bonus,
-          totalPoints,
-          timeTaken,
-          results
-        }
+        coinsEarned,
+        result: { score, accuracy, bonus, totalPoints, timeTaken, results }
       });
-
     } catch (err) {
       console.error("Submit error:", err);
       res.status(500).json({ success: false, message: err.message });
