@@ -60,7 +60,6 @@ export function PasswordChangeModal({ onClose }) {
       return;
     }
 
-    // Simulate password change
     setSuccess(true);
     setTimeout(() => {
       onClose();

@@ -1,21 +1,20 @@
-/* ===== Import Google Font ===== */
 @import url('https://fonts.googleapis.com/css2?family=Kameron:wght@400;500;600;700&display=swap');
 
-/* ===== Tailwind Directives ===== */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ===== CSS Variables ===== */
+
 :root {
   --font-size: 16px;
   --font-family-kameron: "Kameron", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-
+  
   --text-base: 1rem;
   --text-lg: 1.125rem;
   --text-xl: 1.25rem;
   --text-2xl: 1.5rem;
-
+  
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
@@ -42,7 +41,6 @@
   --radius: 0.625rem;
 }
 
-/* ===== Dark Theme Variables ===== */
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -63,35 +61,77 @@
   --ring: oklch(0.439 0 0);
 }
 
-/* ===== Base Styles ===== */
 @layer base {
   * {
     border-color: var(--border);
-    outline-color: var(--ring);
-    outline-style: solid;
-    outline-width: 1px;
   }
-
+  
   body {
     background-color: var(--background);
     color: var(--foreground);
     font-family: var(--font-family-kameron);
     font-size: var(--font-size);
   }
-
-  h1 { font-size: var(--text-2xl); font-weight: var(--font-weight-medium); line-height: 1.5; }
-  h2 { font-size: var(--text-xl); font-weight: var(--font-weight-medium); line-height: 1.5; }
-  h3 { font-size: var(--text-lg); font-weight: var(--font-weight-medium); line-height: 1.5; }
-  h4 { font-size: var(--text-base); font-weight: var(--font-weight-medium); line-height: 1.5; }
-  p, input { font-size: var(--text-base); font-weight: var(--font-weight-normal); line-height: 1.5; }
-  label, button { font-size: var(--text-base); font-weight: var(--font-weight-medium); line-height: 1.5; }
+  
+  h1 {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+  
+  h2 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+  
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+  
+  h4 {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+  
+  p, input {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+  }
+  
+  label, button {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
 }
 
-/* ===== Custom Font Utilities ===== */
 @layer utilities {
-  .font-kameron { font-family: var(--font-family-kameron); }
-  .font-kameron-regular { font-family: var(--font-family-kameron); font-weight: 400; }
-  .font-kameron-medium { font-family: var(--font-family-kameron); font-weight: 500; }
-  .font-kameron-semibold { font-family: var(--font-family-kameron); font-weight: 600; }
-  .font-kameron-bold { font-family: var(--font-family-kameron); font-weight: 700; }
+  .font-kameron {
+    font-family: var(--font-family-kameron);
+  }
+  
+  .font-kameron-regular {
+    font-family: var(--font-family-kameron);
+    font-weight: 400;
+  }
+  
+  .font-kameron-medium {
+    font-family: var(--font-family-kameron);
+    font-weight: 500;
+  }
+  
+  .font-kameron-semibold {
+    font-family: var(--font-family-kameron);
+    font-weight: 600;
+  }
+  
+  .font-kameron-bold {
+    font-family: var(--font-family-kameron);
+    font-weight: 700;
+  }
 }

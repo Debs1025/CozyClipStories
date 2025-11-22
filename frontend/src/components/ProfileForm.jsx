@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Camera, Save, AlertCircle, CheckCircle2 } from 'lucide-react';
 
-/* Missing Component — FIXED */
 function ImageWithFallback({ src, alt, className }) {
   const [error, setError] = useState(false);
 
@@ -22,7 +21,7 @@ function ImageWithFallback({ src, alt, className }) {
 export function ProfileForm({ onChangePassword, onDeleteAccount }) {
   const [formData, setFormData] = useState({
     name: 'Ashla Vinzon',
-    email: 'avinzon.adnu.edu.ph',
+    email: 'avinzon@gbox.adnu.edu.ph',
     username: 'kweenYasmin'
   });
   
@@ -99,7 +98,7 @@ export function ProfileForm({ onChangePassword, onDeleteAccount }) {
                 <img src={avatarPreview} className="w-full h-full object-cover" />
               ) : (
                 <ImageWithFallback
-                  src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop"
+                  src="profile.png"
                   alt="Avatar"
                   className="w-full h-full object-cover"
                 />
@@ -182,7 +181,6 @@ export function ProfileForm({ onChangePassword, onDeleteAccount }) {
   );
 }
 
-/* Extracted Reusable Input Field */
 function InputField({ label, value, onChange, error, type = "text" }) {
   return (
     <div className="mb-4">

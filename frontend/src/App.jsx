@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useState } from 'react';
 import ccLogo from "./assets/cclogo.png";
 import profileImg from "./assets/profile.png";
+import coinsImg from "./assets/coins.png";
 import { NavigationBar } from './components/NavigationBar';
 import LearningProgress from './pages/Learningprogress';
 import ProfileSettings from './pages/ProfileSettings';
@@ -41,18 +42,10 @@ function AppLayout({ children }) {
         />
       </div>
 
-      {/* COINS & GEMS */}
-      <div className="absolute flex items-center gap-6 right-[140px] top-[22px]">
-
-        {/* Gems */}
-        <div className="flex items-center gap-1">
-          <span className="text-[#5CDCFF] text-[22px]">♦</span>
-          <p className="font-kameron-bold text-[#cfcfcf] text-[19px]">{studentGems}</p>
-        </div>
-
-        {/* Coins */}
-        <div className="flex items-center gap-1">
-          <span className="text-[#FFCD29] text-[22px]">🪙</span>
+      {/* COINS (gems removed; coins now show image) */}
+      <div className="absolute flex items-center gap-3 right-[140px] top-[22px]">
+        <div className="flex items-center gap-2">
+          <img src={coinsImg} alt="Coins" className="h-[22px] w-[22px] object-contain" />
           <p className="font-kameron-bold text-[#cfcfcf] text-[19px]">{studentCoins}</p>
         </div>
       </div>

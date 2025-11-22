@@ -156,9 +156,9 @@ export default function Achievements() {
   return (
     <div>
       <h1 className="font-kameron-semibold text-[45px] text-black mb-8">Achievements & Badges</h1>
-      
+
       {/* Summary Stats */}
-      <div className="bg-white border border-black rounded-[20px] p-6 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] mb-6">
+      <div className="bg-white border border-black rounded-[20px] p-6 shadow-[0px_4px_4px_rgba(0,0,0,0.25)] mb-6">
         <div className="grid grid-cols-3 gap-6 text-center">
           <div>
             <p className="font-kameron-semibold text-[36px] text-[#870022]">
@@ -179,77 +179,59 @@ export default function Achievements() {
             <p className="text-[14px] text-black/60">Completion</p>
           </div>
         </div>
-        
+
         <div className="mt-4">
           <div className="w-full bg-gray-200 rounded-full h-3">
-            <div 
-              className="bg-linear-to-r from-[#870022] to-[#5CDCFF] h-3 rounded-full transition-all"
+            <div
+              className="bg-[#870022] h-3 rounded-full transition-all"
               style={{ width: `${completionPercentage}%` }}
             ></div>
           </div>
         </div>
       </div>
 
-      {/* Achievements Grid */}
-      <div className="bg-white border border-black rounded-[20px] p-6 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] mb-6">
+      {/* Achievements Grid (No progress bars) */}
+      <div className="bg-white border border-black rounded-[20px] p-6 shadow-[0px_4px_4px_rgba(0,0,0,0.25)] mb-6">
         <h2 className="font-kameron-semibold text-[24px] text-black mb-6">All Badges</h2>
-        
+
         <div className="grid grid-cols-4 gap-4">
           {achievements.map((achievement) => (
             <div
               key={achievement.id}
               className={`relative p-4 rounded-lg border-2 transition-all ${
                 achievement.unlocked
-                  ? 'bg-linear-to-br from-yellow-50 to-orange-50 border-yellow-400'
+                  ? 'bg-yellow-100 border-yellow-400'
                   : 'bg-gray-50 border-gray-200'
               }`}
             >
-              <div 
+              <div
                 className={`w-14 h-14 rounded-full flex items-center justify-center mb-3 mx-auto ${
-                  achievement.unlocked 
-                    ? 'bg-[#870022] text-white' 
+                  achievement.unlocked
+                    ? 'bg-[#870022] text-white'
                     : 'bg-gray-300 text-gray-500'
                 }`}
               >
                 {achievement.icon}
               </div>
-              
+
               <h4 className={`font-kameron-semibold text-[14px] text-center mb-1 ${
                 achievement.unlocked ? 'text-black' : 'text-gray-500'
               }`}>
                 {achievement.name}
               </h4>
-              
+
               <p className={`text-[11px] text-center mb-2 ${
                 achievement.unlocked ? 'text-black/70' : 'text-gray-400'
               }`}>
                 {achievement.description}
               </p>
-              
-              {achievement.unlocked ? (
-                <p className="text-[10px] text-center text-black/50">
-                  Unlocked: {achievement.unlockedDate}
-                </p>
-              ) : (
-                <div className="mt-2">
-                  <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
-                    <div 
-                      className="bg-[#870022] h-2 rounded-full transition-all"
-                      style={{ width: `${((achievement.progress || 0) / (achievement.maxProgress || 1)) * 100}%` }}
-                    ></div>
-                  </div>
-                  <p className="text-[10px] text-center text-gray-500">
-                    {achievement.progress} / {achievement.maxProgress}
-                  </p>
-                </div>
-              )}
-              
+
               {achievement.unlocked && (
                 <div className="absolute top-2 right-2 bg-yellow-400 rounded-full p-1">
                   <Trophy className="w-3 h-3 text-yellow-800" />
                 </div>
               )}
-              
+
               {/* Category Badge */}
               <div className={`absolute top-2 left-2 px-2 py-0.5 rounded text-[9px] ${
                 achievement.category === 'reading' ? 'bg-blue-100 text-blue-800' :
@@ -264,13 +246,13 @@ export default function Achievements() {
       </div>
 
       {/* Milestones */}
-      <div className="bg-white border border-black rounded-[20px] p-6 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]">
+      <div className="bg-white border border-black rounded-[20px] p-6 shadow-[0px_4px_4px_rgba(0,0,0,0.25)]">
         <h2 className="font-kameron-semibold text-[24px] text-black mb-6">Current Milestones</h2>
-        
+
         <div className="grid grid-cols-2 gap-4">
           {milestones.map((milestone) => {
-            const progress = (milestone.current / milestone.target) * 100;
-            
+            const progress = Math.min((milestone.current / milestone.target) * 100, 100);
+
             return (
               <div key={milestone.id} className="bg-[#f3ebe2] p-5 rounded-lg">
                 <div className="flex justify-between items-start mb-3">
@@ -291,12 +273,15 @@ export default function Achievements() {
                     </p>
                   </div>
                 </div>
-                <div className="w-full bg-white rounded-full h-3 overflow-hidden">
-                  <div 
-                    className="bg-linear-to-r from-[#870022] to-[#5CDCFF] h-3 transition-all duration-500"
+
+                {/* Red progress bar */}
+                <div className="w-full bg-gray-300 rounded-full h-3 overflow-hidden">
+                  <div
+                    className="bg-[#870022] h-3 rounded-full transition-all duration-500"
                     style={{ width: `${progress}%` }}
                   ></div>
                 </div>
+
                 <p className="text-[12px] text-black/50 mt-2">
                   {milestone.target - milestone.current} more to go!
                 </p>

@@ -14,7 +14,6 @@ export function DeleteAccountModal({ onClose }) {
 
     setIsDeleting(true);
     
-    // Simulate account deletion
     setTimeout(() => {
       alert('Account deleted successfully. This is a demo - no actual deletion occurred.');
       onClose();

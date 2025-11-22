@@ -1,19 +1,19 @@
 import { useState } from 'react';
 import { Lock, Check } from 'lucide-react';
-import profileImg from "../assets/profile.png"; // ✅ LOCAL PROFILE IMAGE
+import profileImg from "../assets/profile.png";
 
 export function AvatarCustomization() {
   const [selectedAvatar, setSelectedAvatar] = useState('avatar1');
   const [selectedFrame, setSelectedFrame] = useState('frame1');
   const [activeTab, setActiveTab] = useState('avatar');
 
-  // 🔥 Your avatars now use your own profile image for all unlocked default avatars
+  
   const avatars = [
     { id: 'avatar1', type: 'avatar', unlocked: true, imageUrl: profileImg, name: 'Default' },
     { id: 'avatar2', type: 'avatar', unlocked: true, imageUrl: profileImg, name: 'Adventurer' },
     { id: 'avatar3', type: 'avatar', unlocked: true, imageUrl: profileImg, name: 'Scholar' },
 
-    // Locked avatars can keep their remote images or change later
+    
     { id: 'avatar4', type: 'avatar', unlocked: false, price: 100, imageUrl: profileImg, name: 'Explorer' },
     { id: 'avatar5', type: 'avatar', unlocked: false, price: 150, imageUrl: profileImg, name: 'Master' },
     { id: 'avatar6', type: 'avatar', unlocked: false, price: 200, imageUrl: profileImg, name: 'Legend' },
