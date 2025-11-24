@@ -1,4 +1,3 @@
-// validators/QuestValidator.js
 const { body } = require("express-validator");
 
 const updateProgressValidator = [

@@ -1,4 +1,3 @@
-// validators/LibraryValidator.js
 const { query } = require("express-validator");
 
 const LibraryValidator = {

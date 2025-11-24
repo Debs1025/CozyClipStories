@@ -1,7 +1,6 @@
-// models/StoryModel.js
 const admin = require("firebase-admin");
 
-// ✅ Initialize Firebase Admin if not initialized
+// Initialize Firebase Admin if not initialized
 if (!admin.apps.length) {
   const serviceAccount = require("../firebaseConfig.json");
   admin.initializeApp({
@@ -13,7 +12,7 @@ const db = admin.firestore();
 const storiesCollection = db.collection("stories");
 const progressCollection = db.collection("storyProgress");
 
-// 🧠 Simple in-memory cache
+// Simple in-memory cache
 const storyCache = new Map();
 const CACHE_TTL = 1000 * 60 * 5; // 5 minutes
 
@@ -24,7 +23,7 @@ async function getStoryById(storyId) {
   try {
     if (!storyId) throw new Error("Story ID is required");
 
-    // ✅ Use cache
+    // Use cache
     if (storyCache.has(storyId)) {
       const cached = storyCache.get(storyId);
       if (Date.now() - cached.timestamp < CACHE_TTL) {

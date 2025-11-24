@@ -1,7 +1,6 @@
-// models/LibraryModel.js
 const admin = require("firebase-admin");
 
-// ✅ Initialize Firebase Admin if not already initialized
+// Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
   const serviceAccount = require("../firebaseConfig.json");
   admin.initializeApp({
@@ -12,7 +11,7 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 const storiesCollection = db.collection("stories");
 
-// 🧠 Optional in-memory cache (for frequently accessed stories)
+// Optional in-memory cache (for frequently accessed stories)
 const storyCache = new Map();
 const CACHE_TTL = 1000 * 60 * 5; // 5 minutes
 
@@ -24,7 +23,7 @@ async function fetchStories({ search, genre, difficulty, readingTime, page = 1, 
     let query = storiesCollection;
     const filters = [];
 
-    // 🔍 Search by title (case-insensitive)
+    // Search by title (case-insensitive)
     if (search) {
       query = query
         .where("title_lower", ">=", search.toLowerCase())
@@ -32,30 +31,30 @@ async function fetchStories({ search, genre, difficulty, readingTime, page = 1, 
       filters.push(`search:${search}`);
     }
 
-    // 🎭 Genre filter
+    // Genre filter
     if (genre) {
       query = query.where("genre", "==", genre);
       filters.push(`genre:${genre}`);
     }
 
-    // 💪 Difficulty filter
+    // Difficulty filter
     if (difficulty) {
       query = query.where("difficulty", "==", difficulty);
       filters.push(`difficulty:${difficulty}`);
     }
 
-    // ⏱️ Reading time filter
+    // Reading time filter
     if (readingTime) {
       query = query.where("estimatedReadingTime", "<=", parseInt(readingTime));
       filters.push(`readingTime:${readingTime}`);
     }
 
-    // 🧾 Pagination logic
+    // Pagination logic
     const cacheKey = `stories:${filters.join("|")}:page=${page}:limit=${limit}`;
     if (storyCache.has(cacheKey)) {
       const cached = storyCache.get(cacheKey);
       if (Date.now() - cached.timestamp < CACHE_TTL) {
-        return cached.data; // ✅ Return cached result
+        return cached.data; // Return cached result
       }
     }
 
@@ -71,7 +70,7 @@ async function fetchStories({ search, genre, difficulty, readingTime, page = 1, 
       },
     };
 
-    // 💾 Cache the result
+    // Cache the result
     storyCache.set(cacheKey, { timestamp: Date.now(), data: result });
 
     return result;
@@ -88,7 +87,7 @@ async function getStoryById(storyId) {
   try {
     if (!storyId) throw new Error("Story ID is required");
 
-    // ✅ Check cache first
+    // Check cache first
     if (storyCache.has(storyId)) {
       const cached = storyCache.get(storyId);
       if (Date.now() - cached.timestamp < CACHE_TTL) {

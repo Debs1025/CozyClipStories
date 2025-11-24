@@ -1,4 +1,3 @@
-// validators/BookmarkValidator.js
 const { body, query, param } = require("express-validator");
 
 const addBookmarkValidator = [

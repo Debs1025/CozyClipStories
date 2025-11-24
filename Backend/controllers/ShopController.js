@@ -1,5 +1,3 @@
-// controllers/ShopController.js
-
 const ShopService = require("../services/ShopService");
 
 const ShopController = {

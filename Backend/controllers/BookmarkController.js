@@ -1,4 +1,3 @@
-// controllers/BookmarkController.js
 const BookmarkService = require("../services/BookmarkService");
 
 const BookmarkController = {

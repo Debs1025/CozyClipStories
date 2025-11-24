@@ -1,4 +1,3 @@
-// services/HomeService.js
 const HomeModel = require("../models/HomeModel");
 
 async function saveProgress(data) {

@@ -1,4 +1,3 @@
-// routes/LibraryRoutes.js — FINAL & FIXED (No more crash!)
 const express = require("express");
 const router = express.Router();
 const LibraryController = require("../controllers/LibraryController");

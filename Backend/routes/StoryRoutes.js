@@ -1,8 +1,7 @@
-// routes/StoryRoutes.js
 const express = require("express");
 const router = express.Router();
 const StoryController = require("../controllers/StoryController");
-const validate = require("../validators/StoryValidators"); // Fixed path
+const validate = require("../validators/StoryValidators"); 
 
 // Health check
 router.get("/", (req, res) => {

@@ -1,4 +1,3 @@
-// controllers/LibraryController.js — GENRE + PHILIPPINES FINAL EDITION
 const axios = require("axios");
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;

@@ -1,4 +1,3 @@
-// services/QuestService.js
 const QuestModel = require("../models/QuestModel");
 
 class QuestService {

@@ -1,4 +1,3 @@
-// controllers/StoryController.js
 const axios = require("axios");
 const zlib = require("zlib");
 const { promisify } = require("util");

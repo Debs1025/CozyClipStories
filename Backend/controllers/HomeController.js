@@ -1,4 +1,3 @@
-// controllers/HomeController.js
 const HomeService = require("../services/HomeService");
 
 const HomeController = {
@@ -90,49 +89,10 @@ const HomeController = {
       res.status(500).json({ success: false, message: error.message });
     }
   },
-
-  async getUser(userId) {
-    try {
-      const userDoc = await usersCollection.doc(userId).get();
-      if (!userDoc.exists) {
-        throw new Error(`User not found: ${userId}`);
-      }
-      return { id: userDoc.id, ...userDoc.data() };
-    } catch (error) {
-      console.error("Error getting user:", error);
-      throw error;
-    }
-  },
-
-  async saveReadingProgress(progressData) {
-    try {
-      const { userId, storyId } = progressData;
-      // Verify user exists first
-      await this.getUser(userId);
-      
-      // ... rest of the function stays the same
-    } catch (error) {
-      console.error("Error saving reading progress:", error);
-      throw error;
-    }
-  },
-
   async getReadingProgress(userId, storyId) {
     try {
-      // Verify user exists first
-      const user = await this.getUser(userId);
-      
-      const progressId = `${userId}_${storyId}`;
-      const doc = await progressCollection.doc(progressId).get();
-      if (!doc.exists) return null;
-      return { 
-        id: progressId,
-        ...doc.data(),
-        user: {
-          id: user.id,
-          username: user.username,
-        }
-      };
+      // Delegate to HomeService which implements reading progress retrieval
+      return await HomeService.getProgress(userId, storyId);
     } catch (error) {
       console.error("Error getting reading progress:", error);
       throw error;

@@ -1,4 +1,3 @@
-// services/StoryService.js
 const StoryModel = require("../models/StoryModel");
 
 /**

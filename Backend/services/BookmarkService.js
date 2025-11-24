@@ -1,4 +1,3 @@
-// services/BookmarkService.js
 const BookmarkModel = require("../models/BookmarkModel");
 
 class BookmarkService {

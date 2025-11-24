@@ -1,4 +1,3 @@
-// controllers/QuestController.js
 const QuestModel = require("../models/QuestModel");
 
 exports.updateProgress = async (req, res) => {
