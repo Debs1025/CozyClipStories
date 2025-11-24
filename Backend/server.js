@@ -6,6 +6,7 @@ const morgan = require("morgan");
 const { validationResult } = require("express-validator");
 const firebase = require("firebase-admin");
 
+// Routes
 const HomeRoutes = require("./routes/HomeRoutes");
 const LibraryRoutes = require("./routes/LibraryRoutes");
 const StoryRoutes = require("./routes/StoryRoutes");
