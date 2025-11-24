@@ -6,7 +6,6 @@ const morgan = require("morgan");
 const { validationResult } = require("express-validator");
 const firebase = require("firebase-admin");
 
-
 const HomeRoutes = require("./routes/HomeRoutes");
 const LibraryRoutes = require("./routes/LibraryRoutes");
 const StoryRoutes = require("./routes/StoryRoutes");
@@ -98,6 +97,9 @@ const connectFirebase = () =>
       // Method 1: Full JSON in env
       if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
         const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+        if (serviceAccount.private_key && serviceAccount.private_key.includes("\\n")) {
+          serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+        }
         firebase.initializeApp({
           credential: firebase.credential.cert(serviceAccount),
         });
@@ -112,8 +114,8 @@ const connectFirebase = () =>
         firebase.initializeApp({
           credential: firebase.credential.cert({
             projectId: process.env.FIREBASE_PROJECT_ID,
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-            privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+            client_email: process.env.FIREBASE_CLIENT_EMAIL,
+            private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
           }),
         });
         initialized = true;
@@ -136,45 +138,47 @@ const connectFirebase = () =>
     }
   });
 
-// Start Server AFTER Firebase is ready
-const PORT = process.env.PORT || 5000;
+module.exports = { app, connectFirebase };
 
-connectFirebase()
-  .then((db) => {
-    app.locals.db = db; // Make Firestore available in all routes
-    console.log("Firestore connected");
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
 
-    // Start background services
-    if (paymentService && typeof paymentService.startExpiryChecker === "function") {
-      try {
-        paymentService.startExpiryChecker(db);
-        console.log("Payment expiry checker started");
-      } catch (e) {
-        console.warn("Payment expiry checker failed to start:", e.message || e);
-      }
-    }
+  connectFirebase()
+    .then((db) => {
+      app.locals.db = db; 
+      console.log("Firestore connected");
 
-    app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-      console.log(`CozyClip Stories API is LIVE`);
-    });
-  })
-  .catch((err) => {
-    console.error("Failed to initialize Firebase:", err && err.message ? err.message : err);
-    console.warn("Starting server without Firestore — limited functionality. Set FIREBASE credentials to enable full features.");
-
-    app.locals.db = null;
-    try {
       if (paymentService && typeof paymentService.startExpiryChecker === "function") {
-        paymentService.startExpiryChecker(null);
-        console.log("Payment expiry checker started (no DB)");
+        try {
+          paymentService.startExpiryChecker(db);
+          console.log("Payment expiry checker started");
+        } catch (e) {
+          console.warn("Payment expiry checker failed to start:", e.message || e);
+        }
       }
-    } catch (e) {
-      console.warn("Payment expiry checker not started:", e && e.message ? e.message : e);
-    }
 
-    app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT} (Firestore NOT connected)`);
-      console.log(`CozyClip Stories API is LIVE (limited mode)`);
+      app.listen(PORT, () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+        console.log(`CozyClip Stories API is LIVE`);
+      });
+    })
+    .catch((err) => {
+      console.error("Failed to initialize Firebase:", err && err.message ? err.message : err);
+      console.warn("Starting server without Firestore — limited functionality. Set FIREBASE credentials to enable full features.");
+
+      app.locals.db = null;
+      try {
+        if (paymentService && typeof paymentService.startExpiryChecker === "function") {
+          paymentService.startExpiryChecker(null);
+          console.log("Payment expiry checker started (no DB)");
+        }
+      } catch (e) {
+        console.warn("Payment expiry checker not started:", e && e.message ? e.message : e);
+      }
+
+      app.listen(PORT, () => {
+        console.log(`Server running on http://localhost:${PORT} (Firestore NOT connected)`);
+        console.log(`CozyClip Stories API is LIVE (limited mode)`);
+      });
     });
-  });
+}
