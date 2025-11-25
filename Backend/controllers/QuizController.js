@@ -4,33 +4,21 @@ const QuizService = require("../services/QuizService");
 const https = require("https");
 const admin = require("firebase-admin");
 
-let firebaseConfig = null;
+let serviceAccount = null;
 try {
   if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-    firebaseConfig = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-    if (firebaseConfig && typeof firebaseConfig.private_key === "string" && firebaseConfig.private_key.includes("\\n")) {
-      firebaseConfig.private_key = firebaseConfig.private_key.replace(/\\n/g, "\n");
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    if (typeof serviceAccount.private_key === "string" && serviceAccount.private_key.includes("\\n")) {
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
     }
-  } else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
-    firebaseConfig = {
-      project_id: process.env.FIREBASE_PROJECT_ID,
-      client_email: process.env.FIREBASE_CLIENT_EMAIL,
-      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-    };
-  } else {
-    firebaseConfig = null;
   }
-} catch (err) {
-  console.warn("Failed to load firebase config:", err && err.message);
-  firebaseConfig = null;
+} catch (e) {
+  console.warn("Invalid FIREBASE_SERVICE_ACCOUNT_JSON:", e && e.message);
+  serviceAccount = null;
 }
 
-if (!admin.apps.length) {
-  if (firebaseConfig) {
-    admin.initializeApp({ credential: admin.credential.cert(firebaseConfig) });
-  } else {
-    console.warn("Firebase not initialized: set FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_PROJECT_ID/FIREBASE_CLIENT_EMAIL/FIREBASE_PRIVATE_KEY in env");
-  }
+if (!admin.apps.length && serviceAccount) {
+  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 }
 
 const db = admin.firestore();

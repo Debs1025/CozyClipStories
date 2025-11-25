@@ -12,6 +12,7 @@ async function ensureInit() {
       .then((db) => {
         if (db) app.locals.db = db;
         initialized = true;
+        console.log("connectFirebase() completed in serverless wrapper");
       })
       .catch((err) => {
         console.warn("connectFirebase failed in serverless wrapper:", err && err.message ? err.message : err);
