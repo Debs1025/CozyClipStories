@@ -91,11 +91,7 @@ const connectFirebase = () =>
       console.log("Firebase already initialized");
       return resolve(firebase.firestore());
     }
-
     try {
-      let initialized = false;
-
-      // Method 1: Full JSON in env
       if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
         const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
         if (serviceAccount.private_key && serviceAccount.private_key.includes("\\n")) {
@@ -104,36 +100,12 @@ const connectFirebase = () =>
         firebase.initializeApp({
           credential: firebase.credential.cert(serviceAccount),
         });
-        initialized = true;
-      }
-      // Method 2: Individual fields
-      else if (
-        process.env.FIREBASE_PROJECT_ID &&
-        process.env.FIREBASE_CLIENT_EMAIL &&
-        process.env.FIREBASE_PRIVATE_KEY
-      ) {
-        firebase.initializeApp({
-          credential: firebase.credential.cert({
-            projectId: process.env.FIREBASE_PROJECT_ID,
-            client_email: process.env.FIREBASE_CLIENT_EMAIL,
-            private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-          }),
-        });
-        initialized = true;
-      }
-      // Method 3: Auto-detect (for local testing)
-      else if (process.env.NODE_ENV !== "production") {
-        console.log("Using Firebase emulator or default credentials");
-        firebase.initializeApp();
-        initialized = true;
+        console.log("Firebase initialized from FIREBASE_SERVICE_ACCOUNT_JSON");
+        return resolve(firebase.firestore());
       }
 
-      if (initialized || firebase.apps.length > 0) {
-        console.log("Firebase initialized successfully");
-        resolve(firebase.firestore());
-      } else {
-        throw new Error("No Firebase credentials found");
-      }
+      // If env is missing, fail fast so deploy logs show clear reason
+      throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON not set. Set the full service account JSON in env.");
     } catch (err) {
       reject(err);
     }
