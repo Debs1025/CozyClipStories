@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { NavLink, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import logo from './assets/CozyClips.png';
 import dashboardIcon from './assets/Sidebar/dashboardIcon.png';
 import quizIcon from './assets/Sidebar/QuizIcon.png';
@@ -7,32 +8,28 @@ import wordHelpIcon from './assets/Sidebar/wordhelpIcon.png';
 import logoutIcon from './assets/Sidebar/logoutIcon.png';
 import moneyIcon from './assets/moneyIcon.png';
 import Bookmark from './pages/Bookmark.jsx';
+import Dashboard from './pages/Dashboard.jsx';
+import Quiz from './pages/Quiz.jsx';
+import WordHelper from './pages/WordHelper.jsx';
 
 const NAV_ITEMS = [
-  { label: 'Dashboard', icon: dashboardIcon, page: 'dashboard' },
-  { label: 'Quiz Game', icon: quizIcon, page: 'quiz' },
-  { label: 'Bookmarks', icon: bookmarkIcon, page: 'bookmarks' },
-  { label: 'Word Helper', icon: wordHelpIcon, page: 'wordhelper' },
+  { label: 'Dashboard', icon: dashboardIcon, to: '/dashboard' },
+  { label: 'Quiz Game', icon: quizIcon, to: '/quiz' },
+  { label: 'Bookmarks', icon: bookmarkIcon, to: '/bookmarks' },
+  { label: 'Word Helper', icon: wordHelpIcon, to: '/wordhelper' },
 ];
 
  
 
 export default function App() {
-  const [activeNavItem, setActiveNavItem] = useState('Bookmarks');
-  const [currentPage, setCurrentPage] = useState('bookmarks');
-
-  const handleNavClick = (itemLabel) => {
-    setActiveNavItem(itemLabel);
-    const matched = NAV_ITEMS.find((i) => i.label === itemLabel);
-    setCurrentPage(matched ? matched.page : 'bookmarks');
-  };
+  const location = useLocation();
 
   const handleLogout = () => {
     // Add logout logic here later
   };
 
   return (
-    <div className="min-h-screen bg-brand-sand text-brand-ink">
+    <div className="min-h-screen bg-brand-sand text-brand-ink overflow-x-hidden">
       {/* Top Navbar */}
       <header className="sticky top-0 z-40 border-b border-brand-border bg-[#870022] text-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-2">
@@ -56,23 +53,23 @@ export default function App() {
       </header>
 
       {/* Layout */}
-      <div className="flex h-[calc(100vh-56px)]">
+      <div className="flex flex-col md:flex-row h-[calc(100vh-56px)]">
         {/* Sidebar */}
-        <aside className="w-48 h-full bg-white p-3 flex flex-col border-r border-brand-border">
-          <nav className="space-y-2 flex-1">
+        <aside className="w-full md:w-48 bg-white p-3 flex flex-col border-brand-border border-b md:border-b-0 md:border-r flex-shrink-0 sticky top-[56px] h-[calc(100vh-56px)] overflow-y-auto">
+          <nav className="space-y-2 flex-1 pr-1">
             {NAV_ITEMS.map((item) => (
-              <button
+              <NavLink
                 key={item.label}
-                onClick={() => handleNavClick(item.label)}
-                className={`flex w-full items-center gap-2 rounded px-2 py-2 text-xs text-left no-underline transition-colors border-none focus:outline-none ${
-                  activeNavItem === item.label 
-                    ? 'bg-[#870022] text-white font-semibold' 
-                    : 'hover:bg-brand-card text-black bg-transparent'
-                }`}
+                to={item.to}
+                className={({ isActive }) =>
+                  `flex w-full items-center gap-2 rounded-l-md px-2 py-2 text-xs text-left no-underline transition-colors border-none focus:outline-none mr-2 ${
+                    isActive ? 'bg-[#870022] text-white font-semibold' : 'hover:bg-brand-card text-black bg-transparent'
+                  }`
+                }
               >
                 <img src={item.icon} alt={item.label} className="h-4 w-4 border-none outline-none" />
                 <span className="truncate">{item.label}</span>
-              </button>
+              </NavLink>
             ))}
           </nav>
           <div className="mt-auto">
@@ -87,8 +84,16 @@ export default function App() {
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 flex flex-col overflow-hidden">
-          {currentPage === 'bookmarks' && <Bookmark />}
+        <main className="flex-1 flex flex-col overflow-y-auto h-[calc(100vh-56px)]">
+          <Routes>
+            <Route path="/" element={<Navigate to="/bookmarks" replace />} />
+            <Route path="/bookmarks" element={<Bookmark />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/quiz" element={<Quiz />} />
+            <Route path="/wordhelper" element={<WordHelper />} />
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/bookmarks" replace />} />
+          </Routes>
         </main>
       </div>
     </div>
