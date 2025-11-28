@@ -1,0 +1,13 @@
+[
+  { "id": "reduceAds", "name": "Reduce Ads", "description": "Experience fewer ads while browsing.", "cost": 150, "icon": "Shield", "rarity": "common" },
+  { "id": "speedRead", "name": "Speed Read", "description": "Unlock faster content reading.", "cost": 300, "icon": "Zap", "rarity": "rare" },
+  { "id": "focusMode", "name": "Focus Mode", "description": "Minimize distractions in the UI.", "cost": 200, "icon": "Target", "rarity": "common" },
+  { "id": "knowledgeBoost", "name": "Knowledge Boost", "description": "Gain insight perks for quizzes.", "cost": 400, "icon": "Brain", "rarity": "epic" },
+  { "id": "readingRewards", "name": "Reading Rewards", "description": "Earn bonus coins while reading.", "cost": 250, "icon": "Book", "rarity": "rare" },
+  { "id": "streakBooster", "name": "Streak Booster", "description": "Increase daily streak gains.", "cost": 300, "icon": "Trophy", "rarity": "uncommon" },
+  { "id": "quickSummaries", "name": "Quick Summaries", "description": "Generate short summaries for chapters.", "cost": 275, "icon": "Sparkles", "rarity": "rare" },
+  { "id": "adFreeDay", "name": "Ad-Free Day", "description": "Enjoy one day without ads.", "cost": 500, "icon": "Star", "rarity": "epic" },
+  { "id": "motivationBurst", "name": "Motivation Burst", "description": "Get motivational prompts while reading.", "cost": 220, "icon": "Flame", "rarity": "uncommon" },
+  { "id": "focusTimer", "name": "Focus Timer", "description": "Start Pomodoro-style reading sessions.", "cost": 180, "icon": "Clock", "rarity": "common" },
+  { "id": "bonusLoot", "name": "Bonus Loot", "description": "Chance to earn extra coins per page.", "cost": 260, "icon": "Gift", "rarity": "rare" }
+]

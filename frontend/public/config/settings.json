@@ -1,0 +1,18 @@
+{
+  "theme": "light",
+  "fontSize": "medium",
+  "notifications": true,
+  "audio": {
+    "soundEffects": true,
+    "music": false,
+    "volume": 0.7
+  },
+  "privacy": {
+    "tracking": false,
+    "personalizedAds": false
+  },
+  "display": {
+    "compactMode": false,
+    "highContrast": false
+  }
+}

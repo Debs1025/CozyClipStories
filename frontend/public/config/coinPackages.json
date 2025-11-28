@@ -1,0 +1,12 @@
+[
+  { "id": 1, "coins": 100, "price": 50, "icon": "Gift", "popular": false },
+  { "id": 2, "coins": 250, "price": 100, "icon": "Star", "popular": false },
+  { "id": 3, "coins": 500, "price": 180, "icon": "Sparkles", "popular": true, "discount": "10% OFF" },
+  { "id": 4, "coins": 1000, "price": 320, "icon": "Trophy", "popular": false, "discount": "20% OFF" },
+  { "id": 5, "coins": 2500, "price": 700, "icon": "Flame", "popular": false, "discount": "30% OFF" },
+  { "id": 6, "coins": 50, "price": 30, "icon": "Shield", "popular": false },
+  { "id": 7, "coins": 750, "price": 260, "icon": "Book", "popular": false, "discount": "15% OFF" },
+  { "id": 8, "coins": 1500, "price": 450, "icon": "Target", "popular": false, "discount": "25% OFF" },
+  { "id": 9, "coins": 5000, "price": 1200, "icon": "Zap", "popular": false, "discount": "40% OFF" },
+  { "id": 10, "coins": 10000, "price": 2200, "icon": "Brain", "popular": false, "discount": "45% OFF" }
+]
