@@ -31,7 +31,7 @@ const Sidebar = () => {
 
   return (
     <>
-      <div className="md:hidden fixed top-16 left-2 z-50">
+      <div className="md:hidden fixed top-21 left-6 z-50">
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="p-1 text-black focus:outline-none"
