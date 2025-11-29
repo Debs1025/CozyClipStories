@@ -190,7 +190,7 @@ export default function Achievements() {
         </div>
       </div>
 
-      {/* Achievements Grid (No progress bars) */}
+      {/* Achievements Grid */}
       <div className="bg-white border border-black rounded-[20px] p-6 shadow-[0px_4px_4px_rgba(0,0,0,0.25)] mb-6">
         <h2 className="font-kameron-semibold text-[24px] text-black mb-6">All Badges</h2>
 

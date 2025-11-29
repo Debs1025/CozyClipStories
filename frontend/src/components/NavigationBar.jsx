@@ -7,6 +7,8 @@ export function NavigationBar() {
 
   return (
     <div className="flex gap-2 mb-8">
+
+      {/* Learning Progress */}
       <Link
         to="/learning-progress"
         className={`px-6 py-2 rounded-lg transition-colors font-kameron-regular text-[16px] ${
@@ -17,6 +19,8 @@ export function NavigationBar() {
       >
         Learning Progress
       </Link>
+
+      {/* Profile Settings */}
       <Link
         to="/profile-settings"
         className={`px-6 py-2 rounded-lg transition-colors font-kameron-regular text-[16px] ${
@@ -27,6 +31,8 @@ export function NavigationBar() {
       >
         Profile Settings
       </Link>
+
+      {/* Achievements */}
       <Link
         to="/achievements"
         className={`px-6 py-2 rounded-lg transition-colors font-kameron-regular text-[16px] ${
@@ -37,6 +43,19 @@ export function NavigationBar() {
       >
         Achievements
       </Link>
+
+      {/* Subscription Tab */}
+      <Link
+        to="/subscription"
+        className={`px-6 py-2 rounded-lg transition-colors font-kameron-regular text-[16px] ${
+          isActive('/subscription')
+            ? 'bg-[#870022] text-white'
+            : 'bg-white text-black border border-black hover:bg-gray-50'
+        }`}
+      >
+        Subscription
+      </Link>
+
     </div>
   );
 }

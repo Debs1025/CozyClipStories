@@ -1,137 +1,163 @@
+/* ============================= */
+/*       Google Fonts            */
+/* ============================= */
 @import url('https://fonts.googleapis.com/css2?family=Kameron:wght@400;500;600;700&display=swap');
 
-
+/* ============================= */
+/*       Tailwind Directives     */
+/* ============================= */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-
+/* ============================= */
+/*       CSS Variables           */
+/* ============================= */
 :root {
   --font-size: 16px;
   --font-family-kameron: "Kameron", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-  
+
   --text-base: 1rem;
   --text-lg: 1.125rem;
   --text-xl: 1.25rem;
   --text-2xl: 1.5rem;
-  
-  --background: #ffffff;
-  --foreground: oklch(0.145 0 0);
+
+  --background: #f3ebe2;
+  --foreground: #000000;
   --card: #ffffff;
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --card-foreground: #000000;
   --primary: #030213;
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.95 0.0058 264.53);
-  --secondary-foreground: #030213;
-  --muted: #ececf0;
-  --muted-foreground: #717182;
+  --secondary: #ececf0;
   --accent: #e9ebef;
-  --accent-foreground: #030213;
-  --destructive: #d4183d;
-  --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
-  --input: transparent;
-  --input-background: #f3f3f5;
-  --switch-background: #cbced4;
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --ring: oklch(0.708 0 0);
+  --border: rgba(0,0,0,0.1);
   --radius: 0.625rem;
+
+  --brand-primary: #870022;
+  --brand-primary-hover: #6d001b;
+  --brand-secondary: #d8d7cd;
+  --brand-accent: #e9ebef;
+  --brand-accent-hover: #c5c4ba;
+  --success-green: #22c55e;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
+  --background: #121212;
+  --foreground: #ffffff;
+  --card: #1e1e1e;
+  --card-foreground: #ffffff;
+  --primary: #ffffff;
+  --secondary: #333333;
+  --accent: #444444;
+  --border: rgba(255,255,255,0.1);
 }
 
+/* ============================= */
+/*       Base Styles             */
+/* ============================= */
 @layer base {
-  * {
+  *, *::before, *::after {
     border-color: var(--border);
+    box-sizing: border-box;
   }
-  
+
   body {
-    background-color: var(--background);
+    @apply bg-[#f3ebe2] min-h-screen relative;
     color: var(--foreground);
     font-family: var(--font-family-kameron);
     font-size: var(--font-size);
   }
-  
-  h1 {
-    font-size: var(--text-2xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-  
-  h2 {
-    font-size: var(--text-xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-  
-  h3 {
-    font-size: var(--text-lg);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-  
-  h4 {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-  
-  p, input {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-normal);
-    line-height: 1.5;
-  }
-  
-  label, button {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+
+  h1 { font-size: var(--text-2xl); font-weight: 500; line-height: 1.5; }
+  h2 { font-size: var(--text-xl); font-weight: 500; line-height: 1.5; }
+  h3 { font-size: var(--text-lg); font-weight: 500; line-height: 1.5; }
+  h4 { font-size: var(--text-base); font-weight: 500; line-height: 1.5; }
+  p, input { font-size: var(--text-base); font-weight: 400; line-height: 1.5; }
+  label, button { font-size: var(--text-base); font-weight: 500; line-height: 1.5; }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible {
+    @apply outline-2 outline-offset-2 outline-[#870022];
   }
 }
 
+/* ============================= */
+/*       Utilities               */
+/* ============================= */
 @layer utilities {
-  .font-kameron {
-    font-family: var(--font-family-kameron);
+  .font-kameron { font-family: var(--font-family-kameron); }
+  .font-kameron-regular { font-family: var(--font-family-kameron); font-weight: 400; }
+  .font-kameron-medium { font-family: var(--font-family-kameron); font-weight: 500; }
+  .font-kameron-semibold { font-family: var(--font-family-kameron); font-weight: 600; }
+  .font-kameron-bold { font-family: var(--font-family-kameron); font-weight: 700; }
+
+  .bg-brand-primary { background-color: var(--brand-primary); }
+  .bg-brand-primary-hover:hover { background-color: var(--brand-primary-hover); }
+  .bg-brand-secondary { background-color: var(--brand-secondary); }
+  .bg-brand-accent { background-color: var(--brand-accent); }
+  .bg-brand-accent-hover:hover { background-color: var(--brand-accent-hover); }
+
+  .text-brand-primary { color: var(--brand-primary); }
+  .text-success-green { color: var(--success-green); }
+  .stroke-success-green { stroke: var(--success-green); }
+  .stroke-brand-primary { stroke: var(--brand-primary); }
+
+  .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+  .animate-slide-up { animation: slideUp 0.3s ease-in-out; }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { transform: translateY(20px); opacity:0; } to { transform: translateY(0); opacity:1; } }
+
+  /* Scrollbar */
+  .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #555; }
+
+  /* Absolute stacking fix */
+  .absolute { z-index: 10; }
+  .relative-content { z-index: 0; position: relative; }
+}
+
+/* ============================= */
+/*       Components              */
+/* ============================= */
+@layer components {
+  .plan-card { @apply bg-white shadow-md rounded-lg p-4 flex flex-col; }
+  .plan-card-shadow { box-shadow: 0px 4px 4px rgba(0,0,0,0.25); }
+
+  .btn-primary { @apply bg-[#870022] text-white px-6 py-3 rounded transition-colors hover:bg-[#6d001b]; }
+  .btn-secondary { @apply bg-gray-500 text-white px-6 py-3 rounded transition-colors hover:bg-gray-600; }
+  .btn-success { @apply bg-green-600 text-white px-6 py-3 rounded transition-colors hover:bg-green-700; }
+
+  .subscription-card { @apply bg-white shadow-lg rounded-lg p-8; }
+  .payment-modal { @apply relative bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 p-6; }
+  .confirm-modal { @apply relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6; }
+
+  .billing-toggle-btn { @apply h-[61px] font-bold text-[20px] transition-colors; }
+  .billing-toggle-active { @apply bg-[#870022] text-neutral-100; }
+  .billing-toggle-inactive { @apply bg-[#d8d7cd] text-black hover:bg-[#c5c4ba]; }
+
+  .subscription-container { @apply container mx-auto px-4 py-12; }
+  .subscription-header { @apply bg-[#870022] h-[74px] flex items-center px-9; }
+  .subscription-page-bg { @apply bg-[#f3ebe2] min-h-screen; }
+}
+
+/* ============================= */
+/*       Responsive              */
+/* ============================= */
+@layer utilities {
+  @media (max-width: 640px) {
+    .plan-card { @apply w-full max-w-[367px]; }
+    .subscription-header { @apply px-4; }
+    .billing-toggle-btn { @apply w-full; }
   }
-  
-  .font-kameron-regular {
-    font-family: var(--font-family-kameron);
-    font-weight: 400;
-  }
-  
-  .font-kameron-medium {
-    font-family: var(--font-family-kameron);
-    font-weight: 500;
-  }
-  
-  .font-kameron-semibold {
-    font-family: var(--font-family-kameron);
-    font-weight: 600;
-  }
-  
-  .font-kameron-bold {
-    font-family: var(--font-family-kameron);
-    font-weight: 700;
-  }
+}
+
+/* ============================= */
+/*       Print Styles            */
+/* ============================= */
+@media print {
+  .no-print { display: none !important; }
+  .subscription-page-bg { background-color: white !important; }
 }
