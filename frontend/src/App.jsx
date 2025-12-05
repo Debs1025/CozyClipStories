@@ -11,8 +11,9 @@ import ProfileSettings from "./pages/ProfileSettings";
 import Achievements from "./pages/Achievements";
 import { SubscriptionPage } from "./pages/SubscriptionPage";
 
-// ✅ ADD DASHBOARD ONLY
+// ✅ Corrected imports: distinct names
 import Dashboard from "./pages/Dashboard";
+import Profile from "./pages/Profile";
 
 export default function App() {
   return (
@@ -31,8 +32,9 @@ export default function App() {
         {/* Subscription page */}
         <Route path="/subscription" element={<SubscriptionPage />} />
 
-        {/* ✅ NEW: Dashboard page added */}
+        {/* Dashboard and Profile pages */}
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/profile" element={<Profile />} />
       </Routes>
     </AppLayout>
   );
