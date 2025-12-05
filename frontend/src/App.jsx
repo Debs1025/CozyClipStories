@@ -9,8 +9,10 @@ import { NavigationBar } from "./components/NavigationBar";
 import LearningProgress from "./pages/Learningprogress";
 import ProfileSettings from "./pages/ProfileSettings";
 import Achievements from "./pages/Achievements";
+import { SubscriptionPage } from "./pages/SubscriptionPage";
 
-import { SubscriptionPage } from "./pages/SubscriptionPage"; // single subscription page with toggle
+// ✅ ADD DASHBOARD ONLY
+import Dashboard from "./pages/Dashboard";
 
 export default function App() {
   return (
@@ -26,8 +28,11 @@ export default function App() {
         <Route path="/profile-settings" element={<ProfileSettings />} />
         <Route path="/achievements" element={<Achievements />} />
 
-        {/* Subscription page with toggle */}
+        {/* Subscription page */}
         <Route path="/subscription" element={<SubscriptionPage />} />
+
+        {/* ✅ NEW: Dashboard page added */}
+        <Route path="/dashboard" element={<Dashboard />} />
       </Routes>
     </AppLayout>
   );
@@ -38,7 +43,6 @@ function AppLayout({ children }) {
 
   return (
     <div className="bg-[#f3ebe2] relative min-h-screen">
-
       {/* HEADER BAR */}
       <div className="absolute bg-[#870022] h-[74px] left-0 top-0 w-full" />
 
@@ -61,7 +65,7 @@ function AppLayout({ children }) {
         <p>Shop</p>
       </div>
 
-      {/* PROFILE AVATAR → static, no navigation */}
+      {/* PROFILE AVATAR */}
       <div className="absolute right-10 top-3.5 h-12 w-12 rounded-full overflow-hidden border-2 border-white shadow-lg cursor-pointer">
         <img src={profileImg} alt="Profile avatar" className="w-full h-full object-cover" />
       </div>

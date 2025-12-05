@@ -56,15 +56,23 @@
 /* ============================= */
 @layer base {
   *, *::before, *::after {
-    border-color: var(--border);
     box-sizing: border-box;
+    /* border removed to fix unwanted lines */
   }
 
   body {
-    @apply bg-[#f3ebe2] min-h-screen relative;
+    @apply min-h-screen relative;
+    background-color: var(--background);
     color: var(--foreground);
     font-family: var(--font-family-kameron);
     font-size: var(--font-size);
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible {
+    outline: 2px solid rgba(135,0,34,0.5);
+    outline-offset: 2px;
   }
 
   h1 { font-size: var(--text-2xl); font-weight: 500; line-height: 1.5; }
@@ -73,12 +81,6 @@
   h4 { font-size: var(--text-base); font-weight: 500; line-height: 1.5; }
   p, input { font-size: var(--text-base); font-weight: 400; line-height: 1.5; }
   label, button { font-size: var(--text-base); font-weight: 500; line-height: 1.5; }
-
-  button:focus-visible,
-  a:focus-visible,
-  input:focus-visible {
-    @apply outline-2 outline-offset-2 outline-[#870022];
-  }
 }
 
 /* ============================= */
@@ -123,7 +125,7 @@
 /*       Components              */
 /* ============================= */
 @layer components {
-  .plan-card { @apply bg-white shadow-md rounded-lg p-4 flex flex-col; }
+  .plan-card { @apply bg-white shadow-md rounded-lg p-4 flex flex-col; border: 1px solid var(--border); }
   .plan-card-shadow { box-shadow: 0px 4px 4px rgba(0,0,0,0.25); }
 
   .btn-primary { @apply bg-[#870022] text-white px-6 py-3 rounded transition-colors hover:bg-[#6d001b]; }
