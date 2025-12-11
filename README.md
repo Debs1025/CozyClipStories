@@ -32,6 +32,7 @@ Email: Nodemailer (password recovery)
 AI: Google Generative AI (quiz generation)
 Payment: PayPal webhooks
 
+
 📂 BACKEND STRUCTURE
 
 Backend/
