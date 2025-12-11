@@ -28,7 +28,6 @@ Database: Firebase Firestore (with fallback JSON storage)
 Authentication: JWT + Firebase Admin SDK
 Validation: Express-validator
 Rate Limiting: express-rate-limit
-Testing: Jest + Supertest
 Email: Nodemailer (password recovery)
 AI: Google Generative AI (quiz generation)
 Payment: PayPal webhooks
