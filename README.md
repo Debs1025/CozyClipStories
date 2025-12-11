@@ -20,8 +20,7 @@ track reading progress through an engaging gamification system.
 🔄 Reading Streaks: Daily streak tracking to promote consistency
 💬 Word Helper: Get instant word definitions while reading
 
-🛠️ TECH STACK
-
+🛠️ BACKEND TECH STACK
 Framework: Express.js (Node.js)
 Language: JavaScript
 Database: Firebase Firestore (with fallback JSON storage)
@@ -31,6 +30,16 @@ Rate Limiting: express-rate-limit
 Email: Nodemailer (password recovery)
 AI: Google Generative AI (quiz generation)
 Payment: PayPal webhooks
+
+
+🛠️ FRONTEND TECH STACK
+Build Tool: Vite
+Framework: React (JSX)
+Language: JavaScript
+Styling: CSS (w/ Tailwind CSS)
+Routing: Client-side routing (React Router)
+State Management: React Context/Hooks
+HTTP Client: Axios
 
 📂 BACKEND STRUCTURE
 
@@ -45,3 +54,12 @@ Backend/
 ├── data/            # JSON fallback files & cached data
 ├── tools/           # Migration & utility scripts
 └── scripts/         # Data generation scripts
+
+📂 FRONTEND STRUCTURE
+
+COZYCLIPS-FE-main/
+├── src/
+│   ├── pages/           # Full page views (Landing, Login, Library, Read, Shop, etc.)
+│   ├── components/      # Reusable UI components (Navbar, Sidebar, Cards, Widgets, etc.)
+│   └── assets/          # Static files (images, icons, fonts, media)
+└── public/              # Static public files served directly (favicon, manifest, etc.)
