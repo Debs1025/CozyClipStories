@@ -1,6 +1,4 @@
-================================================================================
-              COZYCLIPS BACKEND API DOCUMENTATION
-================================================================================
+COZYCLIPS STORIES BRIEF INFORMATION
 
 📘 PROJECT OVERVIEW
 
