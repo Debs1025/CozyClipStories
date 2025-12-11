@@ -28,15 +28,15 @@ Database: Firebase Firestore (with fallback JSON storage)
 Authentication: JWT + Firebase Admin SDK
 Validation: Express-validator
 Rate Limiting: express-rate-limit
+Testing: Jest + Supertest
 Email: Nodemailer (password recovery)
 AI: Google Generative AI (quiz generation)
 Payment: PayPal webhooks
 
-
 📂 BACKEND STRUCTURE
 
 Backend/
-├── controllers/     # Business logic for each feature
+├── controllers/      # Business logic for each feature
 ├── routes/          # API endpoint definitions
 ├── services/        # Database & external service interactions
 ├── models/          # Firestore data models
