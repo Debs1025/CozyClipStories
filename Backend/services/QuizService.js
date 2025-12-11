@@ -1,87 +1,208 @@
-const axios = require("axios");
-const QuizModel = require("../models/QuizModel");
-
+const { sanitizeAxiosError, maskApiKey } = require('../utils/logging');
+const axios = require('axios');
+const QuizModel = require('../models/QuizModel');
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
-function buildTrueFalsePrompt(title, content) {
-  return `
-You are a literature teacher creating a comprehension quiz for "${title}".
-Generate exactly 5 True/False statements.
-Text excerpt (first 3000 chars): ${content.substring(0, 3000)}
-Output JSON array with:
-{ "question": "...", "choices":["true","false"], "correctAnswer":"true/false", "explanation":"..." }
-`.trim();
+// Log API key status at startup
+if (!GEMINI_API_KEY) {
+  console.error('❌ GEMINI_API_KEY is missing! Quiz generation will fail.');
+  console.error('Please set GEMINI_API_KEY in your .env file');
 }
 
-function buildMultipleChoicePrompt(title, content) {
-  return `
-You are a literature teacher creating a comprehension quiz for "${title}".
-Generate exactly 5 multiple-choice questions, each with 4 choices, one correct answer.
-Text excerpt (first 3000 chars): ${content.substring(0, 3000)}
-Output JSON array with:
-{ "question":"...", "choices":["A","B","C","D"], "correctAnswer":"...", "explanation":"..." }
-`.trim();
-}
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent";
 
-async function callGemini(prompt) {
-  const resp = await axios.post(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: { temperature:0.5, maxOutputTokens:1500, responseMimeType:"application/json" }
-  }, { headers: { "Content-Type":"application/json" }, timeout:30000 });
+let lastRequest = 0;
+const MIN_DELAY = 2000; // 30 RPM safe for free tier
 
-  const raw = resp.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!raw) throw new Error("AI response missing");
-  return raw.replace(/```json/ig,"").replace(/```/g,"").trim();
-}
-
-module.exports = {
-  async generateQuiz(userId, storyId, storyContent, title) {
-    // Generate 5 True/False questions
-    const tfRaw = await callGemini(buildTrueFalsePrompt(title, storyContent));
-    let tfQuestions = JSON.parse(tfRaw).slice(0,5).map(q => {
-      const questionText = (q.question || "").toString().trim() || "No question";
-      const choices = ["true","false"];
-      const correctAnswer = (q.correctAnswer || "").toString().trim().toLowerCase() === "true" ? "true" : "false";
-      const explanation = (q.explanation || "No explanation").toString().trim();
-      return { question: questionText, choices, correctAnswer, explanation };
-    });
-
-    // Generate 5 Multiple Choice questions
-    const mcRaw = await callGemini(buildMultipleChoicePrompt(title, storyContent));
-    let mcQuestions = JSON.parse(mcRaw).slice(0,5).map(q => {
-      const questionText = (q.question || "").toString().trim() || "No question";
-      let choices = Array.isArray(q.choices) ? q.choices.map(c=>c.toString()) : ["A","B","C","D"];
-      while(choices.length<4) choices.push("None of the above");
-      choices.length = 4;
-      const correctAnswer = (q.correctAnswer || "").toString().trim();
-      const explanation = (q.explanation || "No explanation").toString().trim();
-      return { question: questionText, choices, correctAnswer, explanation };
-    });
-
-    // Combine TF + MC
-    const questions = [...tfQuestions, ...mcQuestions];
-
-    const quizData = {
-      type: "mixed",
-      numQuestions: 10,
-      questions,
-      generatedAt: new Date().toISOString(),
-      title
-    };
-
-    await QuizModel.saveQuiz(userId, storyId, quizData);
-    return quizData;
-  },
-
-  async getQuizForUser(userId, storyId) {
-    const quiz = await QuizModel.getQuiz(userId, storyId);
-    if (!quiz) return null;
-    return {
-      storyId,
-      type: quiz.type,
-      numQuestions: quiz.numQuestions,
-      questions: quiz.questions.map(q=>({question:q.question, choices:q.choices}))
-    };
+async function rateLimit() {
+  const now = Date.now();
+  const elapsed = now - lastRequest;
+  if (elapsed < MIN_DELAY) {
+    await new Promise(resolve => setTimeout(resolve, MIN_DELAY - elapsed));
   }
-};
+  lastRequest = now;
+}
+
+function cleanGutenbergContent(raw) {
+  if (!raw || typeof raw !== "string") return "";
+
+  // Minimal cleaning - just basic whitespace normalization
+  let text = raw
+    .replace(/<[^>]*>/g, " ")  // Remove HTML tags
+    .replace(/\r?\n+/g, " ")   // Convert newlines to spaces
+    .replace(/\s+/g, " ")      // Normalize whitespace
+    .trim();
+
+  // Only remove obvious Gutenberg headers/footers if they exist
+  const startMatch = text.match(/\*\*\* START OF/i);
+  const endMatch = text.match(/\*\*\* END OF/i);
+  
+  if (startMatch && endMatch) {
+    // Extract content between START and END markers
+    const startIdx = text.indexOf(startMatch[0]) + 100; // Skip the marker itself
+    const endIdx = text.indexOf(endMatch[0]);
+    if (startIdx < endIdx) {
+      text = text.substring(startIdx, endIdx);
+    }
+  }
+
+  // Remove only the most obvious metadata
+  text = text
+    .replace(/Project Gutenberg.*?(\n|$)/gi, " ")
+    .replace(/www\.gutenberg\.org/gi, " ")
+    .replace(/\[Illustration.*?\]/gi, " ")
+    .replace(/\*\*\*.*?\*\*\*/g, " ");
+
+  // Final cleanup
+  return text.replace(/\s+/g, " ").slice(0, 30000).trim();
+}
+
+async function generateQuiz(userId, storyId, content, title = "the book", db = null, attempt = 0) {
+  await rateLimit();
+
+  let cleanText = cleanGutenbergContent(content);
+
+  // If provided content is short, pull Gutenberg text and merge to increase length
+  if (cleanText.length < 2000 && storyId && storyId.startsWith('GB')) {
+    try {
+      const gutenbergId = storyId.replace(/^GB/, '');
+      const metaRes = await axios.get(`https://gutendex.com/books/${gutenbergId}`, { timeout: 6000 });
+      const formats = metaRes.data.formats || {};
+      const txtUrl = formats["text/plain; charset=utf-8"] || formats["text/plain"] || formats["text/html"];
+      if (txtUrl) {
+        const txtRes = await axios.get(txtUrl, { timeout: 10000 });
+        const fetchedClean = cleanGutenbergContent(txtRes.data || "");
+        // Merge provided + fetched to maximize usable text
+        cleanText = `${cleanText} ${fetchedClean}`.slice(0, 30000).trim();
+      }
+    } catch (e) {
+      console.warn(`[Quiz] Gutenberg fallback failed for ${storyId}:`, e?.message || e);
+    }
+  }
+
+  // Final guardrail: if still short, synthesize padded content instead of failing
+  if (cleanText.length < 400) {
+    const base = cleanText || content || `Short story about ${storyId || 'a book'} where key events happen.`;
+    const repeatsNeeded = Math.ceil(1200 / Math.max(base.length, 1));
+    cleanText = Array(repeatsNeeded).fill(base).join(' ').slice(0, 30000);
+    console.warn(`[Quiz] Content was very short; padded content to length ${cleanText.length}`);
+  }
+
+  // Check if API key is configured
+  if (!GEMINI_API_KEY) {
+    const err = new Error('GEMINI_API_KEY not configured on server');
+    err.status = 500;
+    throw err;
+  }
+
+  const prompt = `You are a literature teacher. Generate a 10-question quiz on "${title}":
+- 5 True/False questions
+- 5 Multiple-choice (A B C D options)
+
+Use ONLY the text below. No mentions of Gutenberg/licenses/metadata.
+
+Text excerpt:
+${cleanText}
+
+Return ONLY valid JSON (no extra text):
+
+{
+  "type": "mixed",
+  "numQuestions": 10,
+  "questions": [
+    {
+      "question": "Example true/false question?",
+      "type": "true-false",
+      "correctAnswer": "True",
+      "explanation": "Brief reason from text."
+    },
+    {
+      "question": "Example MC question?",
+      "type": "multiple-choice",
+      "choices": ["A. Option 1", "B. Option 2", "C. Option 3", "D. Option 4"],
+      "correctAnswer": "B",
+      "explanation": "Brief reason from text."
+    }
+  ]
+}`;
+
+  try {
+    const res = await axios.post(
+      `${GEMINI_URL}?key=${GEMINI_API_KEY}`,
+      {
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
+        safetySettings: [
+          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" }
+        ]
+      },
+      { timeout: 60000 }
+    );
+
+    let raw = res.data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    raw = raw.replace(/^```json\s*|```$/gi, "").trim();
+
+    const quiz = JSON.parse(raw);
+
+    // Normalize
+    quiz.questions.forEach(q => {
+      if (q.type === "true-false") {
+        q.correctAnswer = q.correctAnswer.toLowerCase().includes('true') ? "True" : "False";
+      } else {
+        q.correctAnswer = q.correctAnswer.toUpperCase().charAt(0);
+      }
+    });
+
+    // Attempt to save quiz to Firebase via QuizModel
+    try {
+        if (QuizModel && typeof QuizModel.saveQuiz === 'function') {
+          await QuizModel.saveQuiz(userId, storyId, quiz, db);
+      } else {
+        // fallback to using firebase-admin directly (if available)
+        // If model isn't available, let model have handled persistence fallback; nothing else to do
+      }
+    } catch (e) {
+      console.warn('saveQuiz attempt failed:', e && e.message ? e.message : e);
+    }
+
+    return quiz;
+
+  } catch (error) {
+    const status = error?.response?.status;
+    const code = error?.code || null;
+    const errorMsg = error?.response?.data?.error?.message || error?.message || 'Unknown error';
+    const errorData = error?.response?.data;
+    
+    console.error(`[Quiz] ❌ Gemini error (status=${status}, code=${code}): ${errorMsg}`);
+    console.error(`[Quiz] Full error response:`, JSON.stringify(errorData, null, 2));
+    
+    // Handle specific Gemini API errors
+    if (status === 403) {
+      // 403 usually means invalid API key or quota exceeded
+      const err = new Error('Quiz generation service returned 403 - API key may be invalid or quota exceeded');
+      err.status = 503; // Return 503 to client to indicate service unavailable
+      throw err;
+    }
+    
+    const shouldRetryOn5xx = status >= 500 && status < 600 && attempt < 3;
+    const shouldRetryOnNetwork = ['ECONNRESET', 'ECONNABORTED', 'ENOTFOUND', 'ERR_BAD_RESPONSE'].includes(code) && attempt < 3;
+
+    if ((status === 429 || shouldRetryOn5xx || shouldRetryOnNetwork) && attempt < 3) {
+      const delay = 3000 * Math.pow(2, attempt); // 3s,6s,12s
+      console.warn(`[Quiz] Retrying Gemini call (attempt ${attempt + 1}/3, waiting ${delay}ms)...`);
+      await new Promise(r => setTimeout(r, delay));
+      return generateQuiz(userId, storyId, content, title, db, attempt + 1);
+    }
+
+    const sanitized = sanitizeAxiosError(error);
+    console.error('[Quiz] Final error:', sanitized);
+    const ex = new Error('Quiz generation failed — try again later');
+    ex.status = sanitized.status || 500;
+    throw ex;
+  }
+}
+
+module.exports = { generateQuiz };

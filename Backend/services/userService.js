@@ -1,9 +1,12 @@
+
 const firebase = require('firebase-admin');
+const { getDb } = require('../utils/getDb');
 const { COLLECTION } = require('../models/userModel');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { demoRegisterUser, demoAuthenticateUser } = require('./demoAuthService');
 
-const jwtKey = process.env.JWT_KEY || null;
+const jwtKey = process.env.JWT_KEY || 'demo-key';
 
 const err = (msg, status = 400) => { const e = new Error(msg); e.status = status; throw e; };
 
@@ -17,7 +20,8 @@ async function changePassword(userId, currentPassword, newPassword) {
   if (!userId) throw Object.assign(new Error('Missing userId'), { status: 400 });
   if (!currentPassword || !newPassword) throw Object.assign(new Error('Current and new password are required'), { status: 400 });
 
-  const db = firebase.firestore();
+  const db = getDb();
+  if (!db) throw Object.assign(new Error('Firestore not initialized (missing credentials or emulator).'), { status: 500 });
   const ref = db.collection(COLLECTION).doc(userId);
   const snap = await ref.get();
   if (!snap.exists) throw Object.assign(new Error('User not found'), { status: 404 });
@@ -34,7 +38,14 @@ async function changePassword(userId, currentPassword, newPassword) {
 }
 
 async function registerUser({ username, email, password, id, role }) {
-  const db = firebase.firestore();
+  const db = getDb();
+  
+  // Use demo auth if Firebase is not initialized
+  if (!db) {
+    console.warn('Using demo auth (Firebase not available)');
+    return await demoRegisterUser({ username, email, password, id, role });
+  }
+
   const users = db.collection(COLLECTION);
 
   // Check for existing email and username
@@ -57,7 +68,7 @@ async function registerUser({ username, email, password, id, role }) {
     username,
     password: hashed,
     role: normalizeRole(role) || role,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    createdAt: require('../utils/getDb').serverTimestampOrDate()
   };
 
   await users.doc(docId).set(userData);
@@ -68,7 +79,14 @@ async function registerUser({ username, email, password, id, role }) {
 }
 
 async function authenticateUser(email, password, role) {
-  const db = firebase.firestore();
+  const db = getDb();
+  
+  // Use demo auth if Firebase is not initialized
+  if (!db) {
+    console.warn('Using demo auth (Firebase not available)');
+    return await demoAuthenticateUser(email, password, role);
+  }
+
   let q = db.collection(COLLECTION).where('email', '==', email).limit(1);
 
   const roleNorm = normalizeRole(role);
@@ -94,7 +112,8 @@ async function authenticateUser(email, password, role) {
 // Generates OTP for password reset
 async function createForgotOtp(email) {
   if (!email) throw Object.assign(new Error('Missing email'), { status: 400 });
-  const db = firebase.firestore();
+  const db = getDb();
+  if (!db) throw Object.assign(new Error('Firestore not initialized (missing credentials or emulator).'), { status: 500 });
   const users = db.collection(COLLECTION);
   const snap = await users.where('email', '==', email).limit(1).get();
   if (snap.empty) throw Object.assign(new Error('User not found'), { status: 404 });
@@ -112,7 +131,8 @@ async function createForgotOtp(email) {
 //Verifies OTP and resets password
 async function resetPasswordByOtp(email, code, newPassword) {
   if (!email || !code || !newPassword) throw Object.assign(new Error('Missing parameters'), { status: 400 });
-  const db = firebase.firestore();
+  const db = getDb();
+  if (!db) throw Object.assign(new Error('Firestore not initialized (missing credentials or emulator).'), { status: 500 });
   const users = db.collection(COLLECTION);
   const snap = await users.where('email', '==', email).limit(1).get();
   if (snap.empty) throw Object.assign(new Error('User not found'), { status: 404 });
@@ -130,4 +150,29 @@ async function resetPasswordByOtp(email, code, newPassword) {
   return true;
 }
 
-module.exports = { registerUser, authenticateUser, changePassword, createForgotOtp, resetPasswordByOtp };
+// Add coins to a student's profile in Firestore
+async function addCoinsToUser(db, userId, amount) {
+  if (!db) throw Object.assign(new Error('Firestore not initialized'), { status: 500 });
+  if (!userId) throw Object.assign(new Error('Missing userId'), { status: 400 });
+  if (!amount || amount <= 0) throw Object.assign(new Error('Invalid coin amount'), { status: 400 });
+
+  try {
+    // Store coins in the students collection to match getUserCoins
+    const studentRef = db.collection('students').doc(userId);
+    const snap = await studentRef.get();
+    
+    const currentCoins = snap.exists ? (snap.data().coins || 0) : 0;
+    const newBalance = currentCoins + amount;
+    
+    // Use set with merge to ensure document exists and coins are updated
+    await studentRef.set({ coins: newBalance }, { merge: true });
+    
+    // Verify the update
+    return newBalance;
+  } catch (error) {
+    console.error(`Error adding coins to user ${userId}:`, error);
+    throw error;
+  }
+}
+
+module.exports = { registerUser, authenticateUser, changePassword, createForgotOtp, resetPasswordByOtp, addCoinsToUser };

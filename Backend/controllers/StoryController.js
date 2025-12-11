@@ -2,96 +2,157 @@ const axios = require("axios");
 const zlib = require("zlib");
 const { promisify } = require("util");
 const gunzip = promisify(zlib.gunzip);
+const fs = require('fs');         // <--- CRUCIAL IMPORT
+const path = require('path');       // <--- CRUCIAL IMPORT
 
-const StoryController = {
-  async getStoryById(req, res) {
-    try {
-      const { id } = req.params;
-      if (!id) return res.status(400).json({ success: false, message: "ID required" });
+// ====================================================
+// CACHE SETUP
+// ====================================================
+const CACHE_FILE = path.join(__dirname, '..', 'data', 'perfect-books-cache.json');
+let perfectBooksCache = {}; // Map of { ID: BookObjectWithContent }
 
-      console.log(`\nFetching story: ${id}`);
+function loadStoryCache() {
+  try {
+    if (fs.existsSync(CACHE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+      // Convert array to an object map for O(1) lookup by ID
+      perfectBooksCache = data.reduce((map, book) => {
+        if (book.id) map[String(book.id).toUpperCase()] = book;
+        return map;
+      }, {});
+      console.log(`Story Cache loaded: ${Object.keys(perfectBooksCache).length} pre-validated books.`);
+      return true;
+    }
+  } catch (e) {
+    console.error("Failed to load Story Cache:", e.message);
+  }
+  return false;
+}
 
-      let title = "Unknown";
-      let author = "Unknown";
-      let content = null;
-      let source = null;
-      let sourceId = null;
+loadStoryCache(); // Load cache immediately when the module starts
 
-      if (id.startsWith("GB")) {
-        const gutenbergId = id.slice(2);
-        try {
-          const { data } = await axios.get(`https://gutendex.com/books/${gutenbergId}`, { timeout: 5000 });
-          title = data.title || "Unknown";
-          author = data.authors?.[0]?.name || "Unknown";
-        } catch (e) {
-          console.log(`Metadata failed: ${e.message}`);
-        }
+// ----------------------------------------------------
+// Get Story by ID
+// ----------------------------------------------------
+async function getStoryById(req, res) {
+  try {
+    let { id } = req.params;
+    if (!id) return res.status(400).json({ success: false, message: "ID required" });
+    
+    // Normalize to uppercase
+    id = String(id).toUpperCase();
+    
+    console.log(`\nRequesting story: ${id}`);
 
+    // === 1. CACHE CHECK (PRIORITY) ===
+    if (perfectBooksCache[id]) {
+      const cachedBook = perfectBooksCache[id];
+      console.log(`CACHE HIT: Returning ${id} from local cache.`);
+      
+      // Ensure the cached book has content before returning
+      if (cachedBook.content && cachedBook.content.length > 2000) {
+        return res.json({
+          success: true,
+          story: {
+            id: cachedBook.id,
+            title: cachedBook.title,
+            author: cachedBook.author,
+            genre: cachedBook.genre || 'unknown',
+            content: cachedBook.content, // Use the pre-validated content
+            source: 'local_cache',
+            source_id: cachedBook.id.startsWith("GB") ? cachedBook.id.slice(2) : cachedBook.id,
+            content_preview: cachedBook.content.substring(0, 500) + (cachedBook.content.length > 500 ? "..." : ""),
+          },
+        });
+      }
+    }
+
+
+    // === 2. LIVE FETCH FALLBACK (Original logic for non-cached books) ===
+    console.log(`LIVE FETCH: Cache miss or invalid content. Attempting to fetch ${id} from source.`);
+    let title = "Unknown";
+    let author = "Unknown";
+    let content = null;
+    let source = null;
+    let sourceId = null;
+
+    if (id.startsWith("GB")) {
+      const gutenbergId = id.slice(2);
+      try {
+        const { data } = await axios.get(`https://gutendex.com/books/${gutenbergId}`, { timeout: 5000 });
+        title = data.title || "Unknown";
+        author = data.authors?.[0]?.name || "Unknown";
+      } catch (e) {
+        console.log(`Metadata failed: ${e.message}`);
+      }
+
+      content = await fetchFromGutenberg(gutenbergId, title);
+      if (content) {
+        source = "gutenberg";
+        sourceId = gutenbergId;
+      }
+    } else if (id.startsWith("OL") && id.endsWith("W")) {
+      const workUrl = `https://openlibrary.org/works/${id}.json`;
+      const { data: work } = await axios.get(workUrl, { timeout: 6000 });
+      title = work.title || "Unknown";
+      author = work.authors ? await getAuthorNames(work.authors) : "Unknown";
+
+      const gutenbergId = extractGutenbergId(work);
+      if (gutenbergId) {
         content = await fetchFromGutenberg(gutenbergId, title);
         if (content) {
           source = "gutenberg";
           sourceId = gutenbergId;
         }
-      } else if (id.startsWith("OL") && id.endsWith("W")) {
-        const workUrl = `https://openlibrary.org/works/${id}.json`;
-        const { data: work } = await axios.get(workUrl, { timeout: 6000 });
-        title = work.title || "Unknown";
-        author = work.authors ? await getAuthorNames(work.authors) : "Unknown";
-
-        const gutenbergId = extractGutenbergId(work);
-        if (gutenbergId) {
-          content = await fetchFromGutenberg(gutenbergId, title);
-          if (content) {
-            source = "gutenberg";
-            sourceId = gutenbergId;
-          }
-        }
-
-        if (!content) {
-          const editionsUrl = `https://openlibrary.org/works/${id}/editions.json?limit=10`;
-          const { data: editionsData } = await axios.get(editionsUrl, { timeout: 6000 });
-          for (const ed of editionsData.entries || []) {
-            if (!ed.ocaid) continue;
-            content = await fetchFromIA(ed.ocaid, title);
-            if (content) {
-              source = "ia";
-              sourceId = ed.ocaid;
-              break;
-            }
-          }
-        }
       }
 
       if (!content) {
-        return res.status(404).json({ success: false, message: "No readable text found." });
+        const editionsUrl = `https://openlibrary.org/works/${id}/editions.json?limit=10`;
+        const { data: editionsData } = await axios.get(editionsUrl, { timeout: 6000 });
+        for (const ed of editionsData.entries || []) {
+          if (!ed.ocaid) continue;
+          content = await fetchFromIA(ed.ocaid, title);
+          if (content) {
+            source = "ia";
+            sourceId = ed.ocaid;
+            break;
+          }
+        }
       }
-
-      // === SEND WITH REAL LINE BREAKS ===
-      const response = {
-        success: true,
-        story: {
-          id,
-          title,
-          author,
-          content,
-          source,
-          source_id: sourceId,
-          content_preview: content.substring(0, 500) + (content.length > 500 ? "..." : ""),
-        },
-      };
-
-      // This ensures \n becomes actual newlines in JSON
-      res.setHeader('Content-Type', 'application/json');
-      res.send(JSON.stringify(response, null, 2));
-
-    } catch (err) {
-      console.error("Error:", err.message);
-      res.status(500).json({ success: false, message: "Server error" });
     }
-  },
-};
 
-// === EXTRACT CLEAN CONTENT (same as before) ===
+    if (!content) {
+      return res.status(404).json({ success: false, message: "No readable text found." });
+    }
+
+    // === SEND WITH REAL LINE BREAKS ===
+    const response = {
+      success: true,
+      story: {
+        id,
+        title,
+        author,
+        content,
+        source,
+        source_id: sourceId,
+        content_preview: content.substring(0, 500) + (content.length > 500 ? "..." : ""),
+      },
+    };
+
+    res.setHeader('Content-Type', 'application/json');
+    return res.send(JSON.stringify(response, null, 2));
+
+  } catch (err) {
+    console.error("Error:", err.message);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+}
+
+// (The remaining helper functions like extractCleanContent, fetchFromGutenberg, etc., are unchanged)
+
+// ----------------------------------------------------
+// Helper: Extract Clean Content
+// ----------------------------------------------------
 function extractCleanContent(rawText, title) {
   const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
   let start = 0;
@@ -107,9 +168,7 @@ function extractCleanContent(rawText, title) {
 
   let lastTocLine = -1;
   for (let i = 0; i < Math.min(1000, lines.length); i++) {
-    if (tocEndPatterns.some(p => p.test(lines[i]))) {
-      lastTocLine = i;
-    }
+    if (tocEndPatterns.some(p => p.test(lines[i]))) lastTocLine = i;
   }
 
   const contentStartPatterns = [
@@ -153,7 +212,9 @@ function extractCleanContent(rawText, title) {
   return content.length > 1000 ? content : "Content extraction failed.";
 }
 
-// === FETCH GUTENBERG ===
+// ----------------------------------------------------
+// Fetch from Gutenberg
+// ----------------------------------------------------
 async function fetchFromGutenberg(id, title) {
   const urls = [
     `https://www.gutenberg.org/files/${id}/${id}-0.txt`,
@@ -168,7 +229,6 @@ async function fetchFromGutenberg(id, title) {
         validateStatus: s => s === 200,
         headers: { 'User-Agent': 'CozyClip/1.0' },
       });
-
       const clean = extractCleanContent(data, title);
       if (clean.length > 2000) return clean;
     } catch (err) {
@@ -178,7 +238,9 @@ async function fetchFromGutenberg(id, title) {
   return null;
 }
 
-// === FETCH IA ===
+// ----------------------------------------------------
+// Fetch from Internet Archive
+// ----------------------------------------------------
 async function fetchFromIA(ocaid, title) {
   const urls = [
     `https://archive.org/download/${ocaid}/${ocaid}_djvu.txt`,
@@ -199,8 +261,8 @@ async function fetchFromIA(ocaid, title) {
       if (url.includes('.gz') || (Buffer.isBuffer(raw) && raw[0] === 0x1f && raw[1] === 0x8b)) {
         try { raw = await gunzip(raw); } catch { continue; }
       }
-      const text = Buffer.isBuffer(raw) ? raw.toString('utf8') : raw;
 
+      const text = Buffer.isBuffer(raw) ? raw.toString('utf8') : raw;
       const clean = extractCleanContent(text, title);
       if (clean.length > 2000) return clean;
     } catch {}
@@ -208,7 +270,9 @@ async function fetchFromIA(ocaid, title) {
   return null;
 }
 
-// === HELPERS ===
+// ----------------------------------------------------
+// Helpers
+// ----------------------------------------------------
 async function getAuthorNames(authors) {
   const names = [];
   for (const a of authors.slice(0, 3)) {
@@ -230,4 +294,4 @@ function extractGutenbergId(work) {
   return null;
 }
 
-module.exports = StoryController;
+module.exports = { getStoryById };

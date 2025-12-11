@@ -1,0 +1,69 @@
+[
+  {
+    "questId": "reading-marathon",
+    "title": "Reading Marathon",
+    "description": "Read 5 books this month",
+    "trigger": "books_read",
+    "target": 5,
+    "rewardCoins": 100,
+    "rarity": "uncommon",
+    "type": "reading",
+    "order": 1,
+    "createdAt": "2025-12-08T15:27:09.800Z",
+    "updatedAt": "2025-12-08T15:27:09.800Z"
+  },
+  {
+    "questId": "speed-reader",
+    "title": "Speed Reader",
+    "description": "Complete a book in one week",
+    "trigger": "fast_reader",
+    "target": 1,
+    "rewardCoins": 50,
+    "rarity": "uncommon",
+    "type": "reading",
+    "order": 2,
+    "createdAt": "2025-12-08T15:27:09.800Z",
+    "updatedAt": "2025-12-08T15:27:09.800Z"
+  },
+  {
+    "questId": "genre-explorer",
+    "title": "Genre Explorer",
+    "description": "Read books from 3 different genres",
+    "trigger": "genre_variety",
+    "target": 3,
+    "rewardCoins": 150,
+    "rarity": "uncommon",
+    "type": "reading",
+    "order": 3,
+    "createdAt": "2025-12-08T15:27:09.800Z",
+    "updatedAt": "2025-12-08T15:27:09.800Z"
+  },
+  {
+    "questId": "romance-lover",
+    "title": "Romance Lover",
+    "description": "Read 3 romance books",
+    "trigger": "genre_books",
+    "target": 3,
+    "rewardCoins": 350,
+    "rarity": "uncommon",
+    "type": "reading",
+    "genre": "Romance",
+    "order": 4,
+    "createdAt": "2025-12-08T15:27:09.800Z",
+    "updatedAt": "2025-12-08T15:27:09.800Z"
+  },
+  {
+    "questId": "horror-fanatic",
+    "title": "Horror Fanatic",
+    "description": "Read 2 horror books",
+    "trigger": "genre_books",
+    "target": 2,
+    "rewardCoins": 150,
+    "rarity": "uncommon",
+    "type": "reading",
+    "genre": "Horror",
+    "order": 5,
+    "createdAt": "2025-12-08T15:27:09.800Z",
+    "updatedAt": "2025-12-08T15:27:09.800Z"
+  }
+]

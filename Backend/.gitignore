@@ -1,4 +1,11 @@
-package-lock.json
+node_modules/
+.env
+dist/
+build/
+coverage/
+/.vercel
+*.logpackage-lock.json
 node_modules
 .env
 firebaseConfig.json
+.vercel

@@ -1,3 +1,4 @@
+// validators/StoryValidator.js
 const { param, body } = require("express-validator");
 
 const StoryValidator = {

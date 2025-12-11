@@ -1,0 +1,52 @@
+[
+  {
+    "id": "double-coins",
+    "name": "Double Coins",
+    "description": "2x coins reward on next quiz",
+    "rarity": "rare",
+    "cost": 450,
+    "type": "power-up",
+    "uses": 1,
+    "icon": "Gift"
+  },
+  {
+    "id": "fifty-fifty",
+    "name": "50/50",
+    "description": "Remove two wrong options once",
+    "rarity": "uncommon",
+    "cost": 300,
+    "type": "power-up",
+    "uses": 1,
+    "icon": "Sparkles"
+  },
+  {
+    "id": "freeze-time",
+    "name": "Freeze Time",
+    "description": "Pause the timer for 20s",
+    "rarity": "epic",
+    "cost": 400,
+    "type": "power-up",
+    "uses": 1,
+    "icon": "Clock"
+  },
+  {
+    "id": "skip-question",
+    "name": "Skip Question",
+    "description": "Skip a question without penalty",
+    "rarity": "common",
+    "cost": 250,
+    "type": "power-up",
+    "uses": 1,
+    "icon": "Book"
+  },
+  {
+    "id": "extra-time",
+    "name": "Extra Time",
+    "description": "Add 2 minutes to the quiz timer",
+    "rarity": "uncommon",
+    "cost": 320,
+    "type": "power-up",
+    "uses": 1,
+    "icon": "Clock"
+  }
+]

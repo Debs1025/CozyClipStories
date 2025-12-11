@@ -1,11 +1,19 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const ShopController = require("../controllers/ShopController");
+const controller = require('../controllers/ShopController');
+const { authLimiter } = require('../middlewares/authLimit');
+const { verifyToken } = require('../middlewares/auth');
 
-router.get("/", ShopController.listItems);
+// List available shop items (no auth required to browse)
+router.get('/api/shop', authLimiter, controller.listItems);
 
-router.post("/redeem", ShopController.redeem);
+// Redeem an item using student coins (auth required)
+router.post('/api/shop/redeem', authLimiter, verifyToken, controller.redeem);
 
-router.get("/transactions/:userId", ShopController.getTransactions);
+// Get user's purchase transactions (auth required)
+router.get('/api/shop/transactions/:userId', authLimiter, verifyToken, controller.getTransactions);
+
+// Initialize shop items in Firestore (admin only - requires ADMIN_KEY header)
+router.post('/api/shop/admin/init', controller.initShopItems);
 
 module.exports = router;

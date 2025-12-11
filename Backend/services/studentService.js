@@ -1,11 +1,56 @@
 const firebase = require('firebase-admin');
+const { getDb } = require('../utils/getDb');
 const { COLLECTION } = require('../models/studentModel');
 
 // Show available customization items
 const AVAILABLE_CUSTOM_ITEMS = ['hat_basic','hat_star','bg_forest','bg_space'];
 
+async function uploadBase64ToStorage(base64Data, userId) {
+  try {
+    const bucket = firebase.storage().bucket();
+    const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (!matches || matches.length !== 3) {
+      throw new Error('Invalid base64 string');
+    }
+    
+    const contentType = matches[1];
+    const base64Image = matches[2];
+    const buffer = Buffer.from(base64Image, 'base64');
+    
+    const fileName = `avatars/${userId}_${Date.now()}.jpg`;
+    const file = bucket.file(fileName);
+    
+    await file.save(buffer, {
+      metadata: { contentType },
+      public: true
+    });
+    
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+    return publicUrl;
+  } catch (error) {
+    console.error('Error uploading to storage:', error);
+    throw error;
+  }
+}
+
 async function createProfile(userId, data = {}) {
-  const db = firebase.firestore();
+  const db = getDb();
+  if (!db) throw new Error('Firestore not initialized (missing credentials or emulator).');
+  
+  // Handle base64 avatar upload - try storage first, fallback to base64
+  if (data.avatarBase64) {
+    try {
+      const avatarUrl = await uploadBase64ToStorage(data.avatarBase64, userId);
+      data.avatarUrl = avatarUrl;
+      delete data.avatarBase64;
+    } catch (error) {
+      console.error('Failed to upload avatar to storage, using base64:', error);
+      // Keep base64 as avatarUrl if storage upload fails
+      data.avatarUrl = data.avatarBase64;
+      delete data.avatarBase64;
+    }
+  }
+  
   const ref = db.collection(COLLECTION).doc(userId);
   const payload = {
     studentId: userId,
@@ -18,12 +63,12 @@ async function createProfile(userId, data = {}) {
     badges: data.badges || [],
     readingProgress: data.readingProgress || [],
     quizHistory: data.quizHistory || [],
-    achievements: data.achievements || [],
     customization: data.customization || {},
     avatarUrl: data.avatarUrl || '',
     unlockedItems: Array.isArray(data.unlockedItems) ? data.unlockedItems : [],
     booksRead: Array.isArray(data.booksRead) ? data.booksRead : [],
-    booksReadCount: Number(data.booksReadCount || (Array.isArray(data.booksRead) ? data.booksRead.length : 0)) // initialize counter
+    booksReadCount: Number(data.booksReadCount || (Array.isArray(data.booksRead) ? data.booksRead.length : 0)), // initialize counter
+    bookmarks: Array.isArray(data.bookmarks) ? data.bookmarks : []
   };
   await ref.set(payload, { merge: true });
   const snap = await ref.get();
@@ -32,7 +77,8 @@ async function createProfile(userId, data = {}) {
 
 async function getProfile(userId) {
   if (!userId) return null;
-  const db = firebase.firestore();
+  const db = getDb();
+  if (!db) return null;
   const snap = await db.collection(COLLECTION).doc(userId).get();
   if (!snap.exists) return null;
   const profile = snap.data();
@@ -48,14 +94,31 @@ async function getProfile(userId) {
 }
 
 async function getAllProfiles() {
-  const db = firebase.firestore();
+  const db = getDb();
+  if (!db) throw new Error('Firestore not initialized (missing credentials or emulator).');
   const snap = await db.collection(COLLECTION).get();
   return snap.docs.map(d => d.data());
 }
 
 async function updateProfile(userId, data = {}) {
   if (!userId) throw new Error('Missing userId');
-  const db = firebase.firestore();
+  const db = getDb();
+  if (!db) throw new Error('Firestore not initialized (missing credentials or emulator).');
+  
+  // Handle base64 avatar upload - try storage first, fallback to base64
+  if (data.avatarBase64) {
+    try {
+      const avatarUrl = await uploadBase64ToStorage(data.avatarBase64, userId);
+      data.avatarUrl = avatarUrl;
+      delete data.avatarBase64;
+    } catch (error) {
+      console.error('Failed to upload avatar to storage, using base64:', error);
+      // Keep base64 as avatarUrl if storage upload fails
+      data.avatarUrl = data.avatarBase64;
+      delete data.avatarBase64;
+    }
+  }
+  
   const ref = db.collection(COLLECTION).doc(userId);
   await ref.set(data, { merge: true }); 
   const snap = await ref.get();
@@ -64,9 +127,113 @@ async function updateProfile(userId, data = {}) {
 
 async function deleteProfile(userId) {
   if (!userId) throw new Error('Missing userId');
-  const db = firebase.firestore();
+  const db = getDb();
+  if (!db) throw new Error('Firestore not initialized (missing credentials or emulator).');
   await db.collection(COLLECTION).doc(userId).delete();
   return true;
 }
 
-module.exports = { createProfile, getProfile, getAllProfiles, updateProfile, deleteProfile };
+async function addBookmark(userId, storyId) {
+  if (!userId || !storyId) throw new Error('userId and storyId are required');
+  const db = getDb();
+  if (!db) throw new Error('Firestore not initialized (missing credentials or emulator).');
+  const ref = db.collection(COLLECTION).doc(userId);
+  
+  // Check if document exists
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new Error('Student profile not found');
+  }
+  
+  // Use set with merge to handle missing bookmarks field
+  await ref.set({
+    bookmarks: firebase.firestore.FieldValue.arrayUnion(storyId)
+  }, { merge: true });
+  
+  const updatedSnap = await ref.get();
+  return updatedSnap.exists ? (updatedSnap.data().bookmarks || []) : [];
+}
+
+async function removeBookmark(userId, storyId) {
+  if (!userId || !storyId) throw new Error('userId and storyId are required');
+  const db = getDb();
+  if (!db) throw new Error('Firestore not initialized (missing credentials or emulator).');
+  const ref = db.collection(COLLECTION).doc(userId);
+  
+  // Check if document exists
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new Error('Student profile not found');
+  }
+  
+  // Use set with merge to handle missing bookmarks field
+  await ref.set({
+    bookmarks: firebase.firestore.FieldValue.arrayRemove(storyId)
+  }, { merge: true });
+  
+  const updatedSnap = await ref.get();
+  return updatedSnap.exists ? (updatedSnap.data().bookmarks || []) : [];
+}
+
+async function consumePowerUp(userId, itemId) {
+  if (!userId || !itemId) throw new Error('userId and itemId are required');
+  const db = getDb();
+  if (!db) throw new Error('Firestore not initialized (missing credentials or emulator).');
+
+  const ref = db.collection(COLLECTION).doc(userId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error('Student profile not found');
+
+  const data = snap.data() || {};
+  const unlockedItems = Array.isArray(data.unlockedItems) ? data.unlockedItems : [];
+
+  // Remove only one occurrence of itemId (preserve other copies)
+  const idx = unlockedItems.findIndex(id => id === itemId);
+  if (idx === -1) return data; // nothing to consume
+  const updatedUnlocked = [...unlockedItems];
+  updatedUnlocked.splice(idx, 1);
+
+  await ref.set({ unlockedItems: updatedUnlocked }, { merge: true });
+
+  const updatedSnap = await ref.get();
+  return updatedSnap.exists ? updatedSnap.data() : null;
+}
+
+async function getBookmarks(userId) {
+  if (!userId) throw new Error('userId is required');
+  const db = getDb();
+  if (!db) throw new Error('Firestore not initialized (missing credentials or emulator).');
+  const snap = await db.collection(COLLECTION).doc(userId).get();
+  if (!snap.exists) return [];
+  return snap.data().bookmarks || [];
+}
+
+async function addBookToRead(userId, bookId) {
+  if (!userId || !bookId) throw new Error('userId and bookId are required');
+  const db = getDb();
+  if (!db) throw new Error('Firestore not initialized (missing credentials or emulator).');
+  const ref = db.collection(COLLECTION).doc(userId);
+  
+  // Check if document exists and if book is already in booksRead
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new Error('Student profile not found');
+  }
+  
+  const booksRead = Array.isArray(snap.data().booksRead) ? snap.data().booksRead : [];
+  
+  // Prevent duplicates
+  if (booksRead.includes(bookId)) {
+    return booksRead; // Already added, return existing array
+  }
+  
+  // Add book to booksRead array
+  await ref.set({
+    booksRead: firebase.firestore.FieldValue.arrayUnion(bookId)
+  }, { merge: true });
+  
+  const updatedSnap = await ref.get();
+  return updatedSnap.exists ? (updatedSnap.data().booksRead || []) : [];
+}
+
+module.exports = { createProfile, getProfile, getAllProfiles, updateProfile, deleteProfile, addBookmark, removeBookmark, getBookmarks, consumePowerUp, addBookToRead };

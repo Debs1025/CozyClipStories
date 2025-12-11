@@ -103,19 +103,19 @@ async function markBookFinished(req, res) {
     const { bookId, title } = req.body || {};
     if (!bookId || typeof bookId !== 'string') return res.status(400).json({ success: false, message: 'bookId is required' });
 
-    
-    if (typeof studentService.markBookFinished === 'function') {
-      await studentService.markBookFinished(uid, { bookId, title });
+    // Add book to booksRead array (with duplicate prevention)
+    if (typeof studentService.addBookToRead === 'function') {
+      await studentService.addBookToRead(uid, bookId);
     }
 
-    // single-line ranking update (transactional, deduplicating) - minimal, secure, non-fatal
+    // Add to completed books with ranking update (transactional, deduplicating) - minimal, secure, non-fatal
     try {
       await rankingService.addCompletedBook(db, uid, { bookId, title });
     } catch (err) {
       console.error('ranking update failed:', err);
     }
 
-    // Updated rank/progress
+    // Get updated student profile
     const studentRef = db.collection('students').doc(uid);
     const snap = await studentRef.get();
     const student = snap.exists ? snap.data() : {};
@@ -126,6 +126,15 @@ async function markBookFinished(req, res) {
 
     const rankInfo = rankingService.computeRank(total);
     rankInfo.badge = rankingService.badgeForTier(rankInfo.tier);
+
+    // Save the computed rank to Firestore
+    try {
+      await studentRef.update({
+        rank: rankInfo.currentRank
+      });
+    } catch (err) {
+      console.error('Failed to update rank in Firestore:', err);
+    }
 
     return res.status(200).json({
       success: true,
@@ -139,11 +148,76 @@ async function markBookFinished(req, res) {
   }
 }
 
+async function addBookmark(req, res) {
+  try {
+    const userId = req.user && req.user.id;
+    if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    
+    const { storyId } = req.body;
+    if (!storyId) return res.status(400).json({ success: false, message: 'storyId is required' });
+    
+    const bookmarks = await studentService.addBookmark(userId, String(storyId));
+    res.status(200).json({ success: true, message: 'Bookmark added', bookmarks });
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({ success: false, message: error.message || 'Internal server error' });
+  }
+}
+
+async function removeBookmark(req, res) {
+  try {
+    const userId = req.user && req.user.id;
+    if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    
+    const { storyId } = req.body;
+    if (!storyId) return res.status(400).json({ success: false, message: 'storyId is required' });
+    
+    const bookmarks = await studentService.removeBookmark(userId, String(storyId));
+    res.status(200).json({ success: true, message: 'Bookmark removed', bookmarks });
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({ success: false, message: error.message || 'Internal server error' });
+  }
+}
+
+async function getBookmarks(req, res) {
+  try {
+    const userId = req.user && req.user.id;
+    if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    
+    const bookmarks = await studentService.getBookmarks(userId);
+    res.status(200).json({ success: true, bookmarks });
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({ success: false, message: error.message || 'Internal server error' });
+  }
+}
+
+async function consumePowerUp(req, res) {
+  try {
+    const userId = req.user && req.user.id;
+    const { itemId } = req.body || {};
+
+    if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    if (!itemId) return res.status(400).json({ success: false, message: 'itemId is required' });
+
+    const profile = await studentService.consumePowerUp(userId, itemId);
+    return res.status(200).json({ success: true, message: 'Power-up consumed', data: { profile } });
+  } catch (error) {
+    const status = error.status || 500;
+    return res.status(status).json({ success: false, message: error.message || 'Internal server error' });
+  }
+}
+
 module.exports = {
   createProfile,
   getAllProfiles,
   getProfile,
   updateProfile,
   deleteProfile,
-  markBookFinished
+  markBookFinished,
+  addBookmark,
+  removeBookmark,
+  getBookmarks,
+  consumePowerUp
 };

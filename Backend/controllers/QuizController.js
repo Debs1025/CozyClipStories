@@ -1,228 +1,236 @@
 const { validationResult } = require("express-validator");
+const axios = require("axios");
+const { sanitizeAxiosError } = require('../utils/logging');
+const https = require("https");
 const QuizModel = require("../models/QuizModel");
 const QuizService = require("../services/QuizService");
-const https = require("https");
-const admin = require("firebase-admin");
 
-let serviceAccount = null;
-try {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-    if (typeof serviceAccount.private_key === "string" && serviceAccount.private_key.includes("\\n")) {
-      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+// HTTPS agent for expired or self-signed certificates
+const agent = new https.Agent({ rejectUnauthorized: false });
+
+// Fallback in-memory cache (development only, volatile)
+const inMemoryQuizCache = new Map();
+
+const hasModelGetQuiz = QuizModel && typeof QuizModel.getQuiz === 'function';
+const hasModelSaveQuiz = QuizModel && typeof QuizModel.saveQuiz === 'function';
+
+function _docId(userId, storyId) {
+  return `${userId}_${storyId}`;
+}
+
+async function getQuizFallback(userId, storyId, db) {
+  // Try model if available
+  if (hasModelGetQuiz) return QuizModel.getQuiz(userId, storyId);
+
+  // Try Firestore if provided
+  if (db) {
+    try {
+      const docId = _docId(userId, storyId);
+      const snap = await db.collection('quizzes').doc(docId).get();
+      return snap.exists ? snap.data() : null;
+    } catch (e) {
+      console.warn('getQuizFallback firestore read error:', e && e.message ? e.message : e);
+      return null;
     }
   }
-} catch (e) {
-  console.warn("Invalid FIREBASE_SERVICE_ACCOUNT_JSON:", e && e.message);
-  serviceAccount = null;
+
+  // Fallback to in-memory (non-persistent) cache
+  const docId = _docId(userId, storyId);
+  return inMemoryQuizCache.get(docId) || null;
 }
 
-if (!admin.apps.length && serviceAccount) {
-  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+async function saveQuizFallback(userId, storyId, data, db) {
+  if (hasModelSaveQuiz) return QuizModel.saveQuiz(userId, storyId, data);
+
+  if (db) {
+    try {
+      const docId = _docId(userId, storyId);
+      await db.collection('quizzes').doc(docId).set({ userId, storyId, ...data, updatedAt: new Date().toISOString() }, { merge: true });
+      const snap = await db.collection('quizzes').doc(docId).get();
+      return snap.exists ? snap.data() : null;
+    } catch (e) {
+      console.warn('saveQuizFallback firestore write error:', e && e.message ? e.message : e);
+      return null;
+    }
+  }
+
+  // In-memory
+  const docId = _docId(userId, storyId);
+  inMemoryQuizCache.set(docId, { userId, storyId, ...data, updatedAt: new Date().toISOString() });
+  return inMemoryQuizCache.get(docId);
 }
 
-const db = admin.firestore();
-const FieldValue = admin.firestore.FieldValue;
-
-// HTTPS agent to bypass expired/self-signed SSL certificates
-const agent = new https.Agent({
-  rejectUnauthorized: false
-});
-
-const QuizController = {
-  async generateQuiz(req, res) {
+// ----------------------------------------------------
+// Generate Quiz
+// ----------------------------------------------------
+async function generateQuiz(req, res) {
+  try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array().map(e => ({ field: e.path, message: e.msg }))
-      });
-    }
+    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array().map(e => ({ field: e.path, message: e.msg })) });
 
-    try {
-      const { userId, storyId } = req.body;
+    const db = req.app.locals.db;
+    const { userId, storyId, content: providedContent } = req.body;
 
-      // Check if quiz already exists
-      const cached = await QuizModel.getQuiz(userId, storyId);
-      if (cached) {
-        return res.json({
-          success: true,
-          quiz: {
-            storyId,
-            type: cached.type,
-            numQuestions: cached.numQuestions,
-            questions: cached.questions.map(q => ({
-              question: q.question,
-              choices: q.choices
-            }))
-          }
-        });
+    // Check cached quiz
+    const cached = await getQuizFallback(userId, storyId, db);
+    const docId = _docId(userId, storyId);
+    if (cached) return res.status(200).json({ success: true, message: "Quiz loaded", data: { quizId: docId, storyId, type: cached.type, numQuestions: cached.numQuestions, questions: cached.questions.map(q => ({ question: q.question, type: q.type, choices: q.choices, correctAnswer: q.correctAnswer })) } });
+
+    if (!storyId.startsWith("GB")) return res.status(400).json({ success: false, message: "Only GB storyId supported" });
+
+    const gutenbergId = storyId.slice(2);
+
+    // If provided content exists and looks valid, use it instead of fetching the whole book
+    let content = '';
+    let title = 'Unknown Title';
+    console.log(`[QuizController] Generating quiz for storyId: ${storyId}, providedContent length: ${providedContent?.length || 0}`);
+    
+    if (providedContent && typeof providedContent === 'string' && providedContent.length >= 50) {
+      content = providedContent;
+      console.log(`[QuizController] Using provided content (${content.length} chars)`);
+      // try to fetch metadata (title) in the background but do not fail if it can't be fetched
+      try {
+        const metaRes = await axios.get(`https://gutendex.com/books/${gutenbergId}`, { timeout: 6000, httpsAgent: agent });
+        title = metaRes.data.title || title;
+      } catch (e) {
+        console.warn(`[QuizController] Could not fetch metadata for book ${gutenbergId}:`, e?.message);
+        // ignore; we'll use Unknown Title if metadata can't be fetched
       }
-
-      // Only GB storyIds supported
-      if (!storyId.startsWith("GB")) {
-        return res.status(400).json({ success: false, message: "Only GB storyId supported" });
-      }
-
-      const gutenbergId = storyId.slice(2);
-      let title = "Unknown";
-      let content = "";
-
-      // Fetch metadata from Gutendex
-      const metaRes = await require("axios").get(`https://gutendex.com/books/${gutenbergId}`, {
-        timeout: 5000,
-        httpsAgent: agent
-      });
-      title = metaRes.data.title || title;
-
-      const formats = metaRes.data.formats || {};
-      let txtUrl =
-        formats["text/plain; charset=utf-8"] ||
-        formats["text/plain"] ||
-        formats["text/html"];
-
-      if (!txtUrl) {
-        return res.status(404).json({ success: false, message: "Story content not available" });
-      }
-
-      const txtRes = await require("axios").get(txtUrl, {
-        timeout: 10000,
-        httpsAgent: agent
-      });
-      content = txtRes.data;
-      if (!content || content.length < 50) {
-        return res.status(404).json({ success: false, message: "Story content too short" });
-      }
-
-      // Generate mixed quiz
-      const quizData = await QuizService.generateQuiz(userId, storyId, content, title);
-
-      res.json({
-        success: true,
-        quiz: {
-          storyId,
-          type: quizData.type,
-          numQuestions: quizData.numQuestions,
-          questions: quizData.questions.map(q => ({
-            question: q.question,
-            choices: q.choices
-          }))
+    } else {
+      // Fetch metadata and content from Gutenberg
+      console.log(`[QuizController] Fetching from Gutenberg for bookId: ${gutenbergId}`);
+      try {
+        const metaRes = await axios.get(`https://gutendex.com/books/${gutenbergId}`, { timeout: 6000, httpsAgent: agent });
+        title = metaRes.data.title || title;
+        const formats = metaRes.data.formats || {};
+        const txtUrl = formats["text/plain; charset=utf-8"] || formats["text/plain"] || formats["text/html"];
+        if (!txtUrl) {
+          console.error(`[QuizController] No text format available for book ${gutenbergId}`);
+          return res.status(404).json({ success: false, message: "Story content not available" });
         }
-      });
-    } catch (err) {
-      console.error("Generate quiz error:", err);
-      res.status(500).json({ success: false, message: err.message });
-    }
-  },
 
-  async getQuiz(req, res) {
+        console.log(`[QuizController] Fetching text from: ${txtUrl}`);
+        const txtRes = await axios.get(txtUrl, { timeout: 10000, httpsAgent: agent });
+        content = txtRes.data || "";
+        console.log(`[QuizController] Fetched content length: ${content.length}`);
+        if (content.length < 50) return res.status(400).json({ success: false, message: "Story content too short" });
+      } catch (e) {
+        console.error(`[QuizController] Error fetching from Gutenberg:`, e?.message);
+        return res.status(503).json({ success: false, message: "Could not fetch story content from Gutenberg" });
+      }
+    }
+
+    // Generate quiz (service persists via save fallback)
+      const quizData = await QuizService.generateQuiz(userId, storyId, content, title, db);
+
+    return res.status(200).json({ success: true, message: "Quiz generated successfully", data: { quizId: docId, storyId, type: quizData.type, numQuestions: quizData.numQuestions, questions: quizData.questions.map(q => ({ question: q.question, type: q.type, choices: q.choices, correctAnswer: q.correctAnswer })) } });
+
+  } catch (err) {
+    console.error("Generate quiz error:", err?.message || sanitizeAxiosError(err));
+    const status = err.status || 500;
+    const message = err.message || "Failed to generate quiz";
+    return res.status(status).json({ success: false, message });
+  }
+}
+
+// ----------------------------------------------------
+// Get Quiz
+// ----------------------------------------------------
+async function getQuiz(req, res) {
+  try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array().map(e => ({ field: e.path, message: e.msg }))
-      });
-    }
+    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array().map(e => ({ field: e.path, message: e.msg })) });
 
-    try {
-      const { storyId } = req.params;
-      const { userId } = req.query;
+    const { storyId } = req.params;
+    const { userId } = req.query;
 
-      const quiz = await QuizModel.getQuiz(userId, storyId);
-      if (!quiz) {
-        return res.status(404).json({ success: false, message: "Quiz not generated yet" });
-      }
+    const quiz = await getQuizFallback(userId, storyId, req.app.locals.db);
+    if (!quiz) return res.status(404).json({ success: false, message: "Quiz not generated yet" });
+    const docId = _docId(userId, storyId);
 
-      res.json({
-        success: true,
-        quiz: {
-          storyId,
-          type: quiz.type,
-          numQuestions: quiz.numQuestions,
-          questions: quiz.questions.map(q => ({
-            question: q.question,
-            choices: q.choices
-          }))
-        }
-      });
-    } catch (err) {
-      res.status(500).json({ success: false, message: err.message });
-    }
-  },
+    return res.status(200).json({ success: true, message: "Quiz fetched", data: { quizId: docId, storyId, type: quiz.type, numQuestions: quiz.numQuestions, questions: quiz.questions.map(q => ({ question: q.question, type: q.type, choices: q.choices, correctAnswer: q.correctAnswer })) } });
 
-  async submitQuiz(req, res) {
+  } catch (err) {
+    const status = err.status || 500;
+    return res.status(status).json({ success: false, message: err.message || "Failed to fetch quiz" });
+  }
+}
+
+// ----------------------------------------------------
+// Submit Quiz
+// ----------------------------------------------------
+async function submitQuiz(req, res) {
+  try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array().map(e => ({ field: e.path, message: e.msg }))
-      });
+
+    const db = req.app.locals.db;
+    if (!db) return res.status(500).json({ success: false, message: "Firestore not initialized" });
+    const { getFieldValue, serverTimestampOrDate } = require('../utils/getDb');
+    const FieldValue = getFieldValue();
+
+    const { userId, storyId, answers, timeTaken } = req.body;
+
+    const quiz = await getQuizFallback(userId, storyId, db);
+    if (!quiz) {
+      console.warn('submitQuiz: quiz not found', { userId, storyId });
+      return res.status(404).json({ success: false, message: "Quiz not generated yet" });
     }
+    if (quiz.submitted) {
+      console.warn('submitQuiz: already submitted', { userId, storyId });
+      return res.status(400).json({ success: false, message: "Quiz already submitted" });
+    }
+    if (!Array.isArray(answers) || answers.length !== quiz.numQuestions) return res.status(400).json({ success: false, message: `Exactly ${quiz.numQuestions} answers required` });
 
-    try {
-      const { userId, storyId, answers, timeTaken } = req.body;
-      const quiz = await QuizModel.getQuiz(userId, storyId);
-      if (!quiz || quiz.submitted) {
-        return res.status(400).json({ success: false, message: "Invalid or already submitted" });
-      }
+    let correct = 0;
+    const results = quiz.questions.map((q, i) => {
+      const userAnswer = (answers[i] || "").toString().trim().toLowerCase();
+      const correctAnswer = (q.correctAnswer || "").toString().trim().toLowerCase();
+      const isCorrect = userAnswer === correctAnswer;
+      if (isCorrect) correct++;
+      return { question: q.question, userAnswer: answers[i], correctAnswer: q.correctAnswer, isCorrect, explanation: q.explanation };
+    });
 
-      if (!Array.isArray(answers) || answers.length !== quiz.numQuestions) {
-        return res.status(400).json({ success: false, message: `Exactly ${quiz.numQuestions} answers required` });
-      }
+    const coinsEarned = correct;
+    const score = correct;
+    const accuracy = (correct / quiz.numQuestions) * 100;
+    const bonus = accuracy === 100 && Number(timeTaken) < 120 ? 10 : 0;
+    const totalPoints = score * 5 + bonus;
 
-      let correct = 0;
-      const results = quiz.questions.map((q, i) => {
-        const userAnswer = (answers[i] || "").toString().trim().toLowerCase();
-        const correctAnswer = (q.correctAnswer || "").toString().trim().toLowerCase();
-        const isCorrect = userAnswer === correctAnswer;
-        if (isCorrect) correct++;
-        return {
-          question: q.question,
-          userAnswer: answers[i],
-          correctAnswer: q.correctAnswer,
-          isCorrect,
-          explanation: q.explanation
-        };
-      });
+    await saveQuizFallback(userId, storyId, { ...quiz, submitted: true, lastScore: score, lastAccuracy: accuracy, lastTime: timeTaken, lastBonus: bonus, results, submittedAt: new Date().toISOString() }, db);
 
-      const coinsEarned = correct; // 1 coin per correct answer
-      const score = correct;
-      const accuracy = (correct / quiz.numQuestions) * 100;
-      let bonus = 0;
-      if (accuracy === 100 && Number(timeTaken) < 120) bonus = 10;
-
-      const totalPoints = score * 5 + bonus;
-
-      // Save quiz submission
-      await QuizModel.saveQuiz(userId, storyId, {
-        ...quiz,
-        submitted: true,
-        lastScore: score,
-        lastAccuracy: accuracy,
-        lastTime: timeTaken,
-        lastBonus: bonus,
-        results,
-        submittedAt: new Date().toISOString()
-      });
-
-      // Update coins in students table
-      const studentRef = db.collection("students").doc(userId);
-      await studentRef.set({
-        coins: FieldValue.increment(coinsEarned),
+    if (FieldValue) {
+      await db.collection("students").doc(userId).set({ 
+        coins: FieldValue.increment(coinsEarned), 
         totalCoinsEarned: FieldValue.increment(coinsEarned),
-        updatedAt: FieldValue.serverTimestamp()
+        points: FieldValue.increment(totalPoints),
+        updatedAt: FieldValue.serverTimestamp() 
       }, { merge: true });
-
-      res.json({
-        success: true,
-        coinsEarned,
-        result: { score, accuracy, bonus, totalPoints, timeTaken, results }
-      });
-    } catch (err) {
-      console.error("Submit error:", err);
-      res.status(500).json({ success: false, message: err.message });
+    } else {
+      // fallback: read student, update numerically
+      try {
+        const studentSnap = await db.collection('students').doc(userId).get();
+        const studentData = studentSnap.exists ? studentSnap.data() : {};
+        const currentCoins = Number(studentData.coins || 0);
+        const currentTotal = Number(studentData.totalCoinsEarned || 0);
+        const currentPoints = Number(studentData.points || 0);
+        await db.collection('students').doc(userId).set({ 
+          coins: currentCoins + coinsEarned, 
+          totalCoinsEarned: currentTotal + coinsEarned,
+          points: currentPoints + totalPoints,
+          updatedAt: serverTimestampOrDate() 
+        }, { merge: true });
+      } catch (e) {
+        console.warn('submitQuiz: student update fallback failed', e && e.message ? e.message : e);
+      }
     }
-  }
-};
 
-module.exports = QuizController;
+    return res.status(200).json({ success: true, message: "Quiz submitted successfully", data: { coinsEarned, score, accuracy, bonus, totalPoints, timeTaken, results } });
+
+  } catch (err) {
+    console.error("Submit error:", err?.message || sanitizeAxiosError(err));
+    const status = err.status || 500;
+    return res.status(status).json({ success: false, message: err.message || "Failed to submit quiz" });
+  }
+}
+
+module.exports = { generateQuiz, getQuiz, submitQuiz };

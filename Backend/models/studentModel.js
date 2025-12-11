@@ -17,7 +17,7 @@ const studentSchema = {
   readingProgress: { type: 'array' },
   booksRead: { type: 'array' },
   quizHistory: { type: 'array' },
-  achievements: { type: 'array' }
+  bookmarks: { type: 'array' }
 };
 
 module.exports = { COLLECTION, studentSchema };
