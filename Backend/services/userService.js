@@ -48,15 +48,10 @@ async function registerUser({ username, email, password, id, role }) {
 
   const users = db.collection(COLLECTION);
 
-  // Check for existing email and username
+  // Check for existing email only
   if (!email) throw err('Email is required', 400);
   const existingEmail = await users.where('email', '==', email).limit(1).get();
   if (!existingEmail.empty) throw err('Email already exists', 409);
-
-  if (username) {
-    const existingUser = await users.where('username', '==', username).limit(1).get();
-    if (!existingUser.empty) throw err('Username already exists', 409);
-  }
 
   const salt = await bcrypt.genSalt(10);
   const hashed = await bcrypt.hash(password, salt);
